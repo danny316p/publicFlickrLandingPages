@@ -2,9 +2,10 @@ const fs = require("fs");
 const fetch = require("node-fetch");
 
 // ================= CONFIG =================
-const API_KEY = "YOUR_FLICKR_API_KEY";
-const USER_ID = "YOUR_USER_ID"; // e.g. 12345678@N00
-const COLLECTION_ID = "YOUR_COLLECTION_ID"; // e.g. 721577...
+var config_consts = require("./secrets/config.js");
+const API_KEY = config_consts.API_KEY;
+const COLLECTION_ID = config_consts.COLLECTION_ID;
+const USER_ID = config_consts.USER_ID;
 
 // ================= FETCH =================
 async function fetchCollectionTree() {
