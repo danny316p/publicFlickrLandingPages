@@ -6,9 +6,6 @@ var config_consts = require("./secrets/config.js");
 const API_KEY = config_consts.API_KEY;
 const COLLECTION_ID = config_consts.COLLECTION_ID;
 const USER_ID = config_consts.USER_ID;
-console.log(API_KEY);
-console.log(COLLECTION_ID);
-console.log(USER_ID);
 
 // Fetch collections (includes sets/albums)
 async function fetchCollection() {
