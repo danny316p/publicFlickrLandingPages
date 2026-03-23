@@ -2,7 +2,7 @@ const fs = require("fs");
 const fetch = require("node-fetch");
 
 // CONFIG
-var config_consts = require("./secrets/config.js"); 
+var config_consts = require("./secrets/config.js");
 const API_KEY = config_consts.API_KEY;
 const COLLECTION_ID = config_consts.COLLECTION_ID;
 const USER_ID = config_consts.USER_ID;
