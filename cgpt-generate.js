@@ -28,8 +28,9 @@ function generateHTML(albums) {
     return `
       <a href="${link}" class="card" target="_blank">
         <div class="card-content">
-          <h2>${album.title._content}</h2>
-          <p>${album.description._content || ""}</p>
+          <h2>${album.title}</h2>
+          <p>${album.description || ""}
+          </p>
         </div>
       </a>
     `;
