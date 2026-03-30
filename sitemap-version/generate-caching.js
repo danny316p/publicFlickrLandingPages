@@ -8,7 +8,7 @@ const USER_ID = config_consts.USER_ID;
 
 const API = "https://www.flickr.com/services/rest/";
 const CACHE_DIR = path.join(__dirname, ".cache");
-const CACHE_TTL = 1000 * 60 * 60 * 24; // 24 hours
+const CACHE_TTL = 1000 * 60 * 60 * 24 * 7; // 7 days
 
 if (!fs.existsSync(CACHE_DIR)) {
   fs.mkdirSync(CACHE_DIR);
