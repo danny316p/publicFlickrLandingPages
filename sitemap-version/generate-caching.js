@@ -2,44 +2,43 @@ const fs = require("fs");
 const path = require("path");
 const fetch = require("node-fetch");
 
-var config_consts = require("../secrets/config.js");
-const API_KEY = config_consts.API_KEY;
-const USER_ID = config_consts.USER_ID;
+const API_KEY = "YOUR_FLICKR_API_KEY";
+const USER_ID = "YOUR_FLICKR_USER_ID";
 
 const API = "https://www.flickr.com/services/rest/";
 const CACHE_DIR = path.join(__dirname, ".cache");
-const CACHE_TTL = 1000 * 60 * 60 * 24 * 7; // 7 days
+const CACHE_TTL = 1000 * 60 * 60 * 24;
+
+const FORCE_REFRESH = process.argv.includes("--refresh");
 
 if (!fs.existsSync(CACHE_DIR)) {
   fs.mkdirSync(CACHE_DIR);
 }
 
-// ---------- Cache Helpers ----------
+// ---------- Cache ----------
 
-function getCachePath(key) {
+function cachePath(key) {
   return path.join(CACHE_DIR, key + ".json");
 }
 
-function isCacheValid(file) {
-  if (!fs.existsSync(file)) return false;
-  const stats = fs.statSync(file);
-  return (Date.now() - stats.mtimeMs) < CACHE_TTL;
-}
-
 function readCache(key) {
-  const file = getCachePath(key);
-  if (isCacheValid(file)) {
-    return JSON.parse(fs.readFileSync(file));
-  }
-  return null;
+  const file = cachePath(key);
+  if (!fs.existsSync(file)) return null;
+  return JSON.parse(fs.readFileSync(file));
 }
 
 function writeCache(key, data) {
-  const file = getCachePath(key);
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+  fs.writeFileSync(cachePath(key), JSON.stringify(data, null, 2));
 }
 
-// ---------- Flickr API ----------
+function isCacheFresh(file) {
+  if (!fs.existsSync(file)) return false;
+  if (FORCE_REFRESH) return false;
+  const age = Date.now() - fs.statSync(file).mtimeMs;
+  return age < CACHE_TTL;
+}
+
+// ---------- Flickr ----------
 
 async function flickrCall(method, params = {}) {
   const url = new URL(API);
@@ -56,83 +55,94 @@ async function flickrCall(method, params = {}) {
   return res.json();
 }
 
-// ---------- Data Fetching ----------
+// ---------- Data ----------
 
 async function getCollections() {
-  const cacheKey = "collections";
+  const file = cachePath("collections");
 
-  const cached = readCache(cacheKey);
-  if (cached) {
-    console.log("📦 Using cached collections");
-    return cached;
+  if (isCacheFresh(file)) {
+    console.log("📦 collections cache");
+    return readCache("collections");
   }
 
-  console.log("🌐 Fetching collections...");
+  console.log("🌐 fetching collections");
   const data = await flickrCall("flickr.collections.getTree", {
     user_id: USER_ID
   });
 
-  writeCache(cacheKey, data.collections.collection);
+  writeCache("collections", data.collections.collection);
   return data.collections.collection;
 }
 
-async function getPhotosetInfo(id) {
-  const cacheKey = `photoset_${id}`;
+// Smart diffing version
+async function getPhotosetInfoSmart(set) {
+  const key = `photoset_${set.id}`;
+  const file = cachePath(key);
+  const cached = readCache(key);
 
-  const cached = readCache(cacheKey);
-  if (cached) {
-    console.log(`📦 Cached album ${id}`);
-    return cached;
+  // If cached and not forced refresh:
+  if (cached && !FORCE_REFRESH) {
+    // Compare last update timestamps
+    const cachedUpdated = cached.date_update;
+    const currentUpdated = set.date_update;
+
+    if (cachedUpdated && currentUpdated && cachedUpdated === currentUpdated) {
+      console.log(`📦 unchanged album ${set.id}`);
+      return cached;
+    }
   }
 
-  console.log(`🌐 Fetching album ${id}`);
+  console.log(`🌐 updating album ${set.id}`);
   const data = await flickrCall("flickr.photosets.getInfo", {
-    photoset_id: id
+    photoset_id: set.id
   });
 
-  writeCache(cacheKey, data.photoset);
+  writeCache(key, data.photoset);
   return data.photoset;
 }
 
 // ---------- Helpers ----------
 
-function getAlbumUrl(photosetId) {
-  return `https://www.flickr.com/photos/${USER_ID}/albums/${photosetId}`;
+function albumUrl(id) {
+  return `https://www.flickr.com/photos/${USER_ID}/albums/${id}`;
 }
 
-// ---------- Recursive Enrichment ----------
+// ---------- Enrichment ----------
 
 async function enrichCollection(collection) {
   if (collection.set) {
-    const enrichedSets = [];
+    collection.set = await Promise.all(
+      collection.set.map(async (set) => {
+        const info = await getPhotosetInfoSmart(set);
 
-    for (const set of collection.set) {
-      const info = await getPhotosetInfo(set.id);
-
-      enrichedSets.push({
-        id: set.id,
-        title: info.title._content,
-        photos: info.photos,
-        videos: info.videos || 0,
-        url: getAlbumUrl(set.id)
-      });
-    }
-
-    collection.set = enrichedSets;
+        return {
+          id: set.id,
+          title: info.title._content,
+          photos: info.photos,
+          videos: info.videos || 0,
+          url: albumUrl(set.id)
+        };
+      })
+    );
   }
 
   if (collection.collection) {
-    const subs = [];
-    for (const sub of collection.collection) {
-      subs.push(await enrichCollection(sub));
-    }
-    collection.collection = subs;
+    collection.collection = await Promise.all(
+      collection.collection.map(enrichCollection)
+    );
   }
 
   return collection;
 }
 
-// ---------- HTML Rendering ----------
+// ---------- HTML ----------
+
+function formatMeta(set) {
+  if (set.videos > 0) {
+    return `${set.photos} photos • ${set.videos} videos`;
+  }
+  return `${set.photos} photos`;
+}
 
 function renderCollection(collection) {
   return `
@@ -145,10 +155,13 @@ function renderCollection(collection) {
     <div class="children">
 
       ${(collection.set || []).map(set => `
-        <div class="album">
+        <div class="album"
+             data-title="${set.title.toLowerCase()}"
+             data-photos="${set.photos}"
+             data-videos="${set.videos}">
           <a href="${set.url}" target="_blank">${set.title}</a>
           <div class="meta">
-            ${set.photos} photos • ${set.videos} videos
+            ${formatMeta(set)}
           </div>
         </div>
       `).join("")}
@@ -179,6 +192,20 @@ body {
 #app {
   max-width: 1000px;
   margin: auto;
+}
+
+.controls {
+  background: white;
+  padding: 10px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+input {
+  padding: 6px;
 }
 
 .collection, .album {
@@ -215,13 +242,8 @@ body {
   color: #555;
 }
 
-a {
-  text-decoration: none;
-  color: #0063dc;
-}
-
-a:hover {
-  text-decoration: underline;
+.hidden {
+  display: none !important;
 }
 
 @media (max-width: 600px) {
@@ -230,11 +252,20 @@ a:hover {
   }
 }
 </style>
-
 </head>
+
 <body>
 
 <h1>Flickr Sitemap</h1>
+
+<div class="controls">
+  <input type="text" id="search" placeholder="Search albums...">
+  <input type="number" id="minPhotos" placeholder="Min photos">
+  <label>
+    <input type="checkbox" id="hasVideos"> Has videos
+  </label>
+</div>
+
 <div id="app">
 ${collections.map(renderCollection).join("")}
 </div>
@@ -246,6 +277,34 @@ function toggle(el) {
   el.querySelector(".toggle").textContent =
     parent.classList.contains("open") ? "[-]" : "[+]";
 }
+
+// Filtering
+const searchInput = document.getElementById("search");
+const minPhotosInput = document.getElementById("minPhotos");
+const hasVideosInput = document.getElementById("hasVideos");
+
+function applyFilters() {
+  const term = searchInput.value.toLowerCase();
+  const minPhotos = parseInt(minPhotosInput.value) || 0;
+  const hasVideos = hasVideosInput.checked;
+
+  document.querySelectorAll(".album").forEach(el => {
+    const title = el.dataset.title;
+    const photos = parseInt(el.dataset.photos);
+    const videos = parseInt(el.dataset.videos);
+
+    let visible =
+      title.includes(term) &&
+      photos >= minPhotos &&
+      (!hasVideos || videos > 0);
+
+    el.classList.toggle("hidden", !visible);
+  });
+}
+
+searchInput.oninput = applyFilters;
+minPhotosInput.oninput = applyFilters;
+hasVideosInput.onchange = applyFilters;
 </script>
 
 </body>
@@ -258,16 +317,12 @@ function toggle(el) {
 (async () => {
   const collections = await getCollections();
 
-  console.log("🔄 Enriching collections...");
-  const enriched = [];
+  console.log("🔄 smart incremental enrichment...");
+  const enriched = await Promise.all(
+    collections.map(enrichCollection)
+  );
 
-  for (const col of collections) {
-    enriched.push(await enrichCollection(col));
-  }
+  fs.writeFileSync("index.html", buildHTML(enriched));
 
-  const html = buildHTML(enriched);
-
-  fs.writeFileSync("index.html", html);
-
-  console.log("✅ Done! Cached + generated index.html");
+  console.log("✅ done (smart diffing + clean UI)");
 })();
