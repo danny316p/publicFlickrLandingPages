@@ -291,7 +291,7 @@ const hasVideosInput = document.getElementById("hasVideos");
 
 // Escape regex
 function escapeRegex(str) {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return str.replace(/[.*+?^\${}()|[\]\\]/g, '\\$&');
 }
 
 // Highlight matches
