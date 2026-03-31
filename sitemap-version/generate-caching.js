@@ -252,6 +252,11 @@ input {
     flex-direction: column;
   }
 }
+
+mark {
+  background: yellow;
+  padding: 0 2px;
+}
 </style>
 </head>
 
@@ -279,20 +284,37 @@ function toggle(el) {
     parent.classList.contains("open") ? "[-]" : "[+]";
 }
 
-// Filtering
+// Inputs
 const searchInput = document.getElementById("search");
 const minPhotosInput = document.getElementById("minPhotos");
 const hasVideosInput = document.getElementById("hasVideos");
+
+// Escape regex
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Highlight matches
+function highlight(text, term) {
+  if (!term) return text;
+
+  const regex = new RegExp("(" + escapeRegex(term) + ")", "gi");
+  return text.replace(regex, '<mark>$1</mark>');
+}
 
 function applyFilters() {
   const term = searchInput.value.toLowerCase();
   const minPhotos = parseInt(minPhotosInput.value) || 0;
   const hasVideos = hasVideosInput.checked;
 
-  document.querySelectorAll(".album").forEach(el => {
+  const albums = document.querySelectorAll(".album");
+
+  albums.forEach(el => {
     const title = el.dataset.title;
     const photos = parseInt(el.dataset.photos);
     const videos = parseInt(el.dataset.videos);
+
+    const link = el.querySelector("a");
 
     let visible =
       title.includes(term) &&
@@ -300,9 +322,32 @@ function applyFilters() {
       (!hasVideos || videos > 0);
 
     el.classList.toggle("hidden", !visible);
+
+    // Highlight title
+    if (visible && term) {
+      link.innerHTML = highlight(link.textContent, term);
+    } else {
+      link.textContent = link.textContent; // reset
+    }
+  });
+
+  // Auto-expand collections with visible children
+  document.querySelectorAll(".collection").forEach(col => {
+    const visibleAlbums = col.querySelectorAll(".album:not(.hidden)");
+
+    if (visibleAlbums.length > 0) {
+      col.classList.add("open");
+      const toggleEl = col.querySelector(".toggle");
+      if (toggleEl) toggleEl.textContent = "[-]";
+    } else {
+      col.classList.remove("open");
+      const toggleEl = col.querySelector(".toggle");
+      if (toggleEl) toggleEl.textContent = "[+]";
+    }
   });
 }
 
+// Events
 searchInput.oninput = applyFilters;
 minPhotosInput.oninput = applyFilters;
 hasVideosInput.onchange = applyFilters;
