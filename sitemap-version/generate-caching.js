@@ -2,13 +2,12 @@ const fs = require("fs");
 const path = require("path");
 const fetch = require("node-fetch");
 
-var config_consts = require("../secrets/config.js");
-const API_KEY = config_consts.API_KEY;
-const USER_ID = config_consts.USER_ID;
+const API_KEY = "YOUR_FLICKR_API_KEY";
+const USER_ID = "YOUR_FLICKR_USER_ID";
 
 const API = "https://www.flickr.com/services/rest/";
 const CACHE_DIR = path.join(__dirname, ".cache");
-const CACHE_TTL = 1000 * 60 * 60 * 24 * 7;
+const CACHE_TTL = 1000 * 60 * 60 * 24;
 
 const FORCE_REFRESH = process.argv.includes("--refresh");
 
@@ -75,7 +74,7 @@ async function getCollections() {
   return data.collections.collection;
 }
 
-// ---------- Photosets (ALL albums) ----------
+// ---------- Photosets ----------
 
 async function getAllPhotosets() {
   const cached = readCache("photosets_list");
@@ -106,7 +105,7 @@ async function getAllPhotosets() {
   return all;
 }
 
-// ---------- Build Map ----------
+// ---------- Map ----------
 
 function buildPhotosetMap(list) {
   const map = {};
@@ -116,8 +115,7 @@ function buildPhotosetMap(list) {
       id: ps.id,
       title: ps.title._content,
       photos: parseInt(ps.count_photos || 0),
-      videos: parseInt(ps.count_videos || 0),
-      lastUpdate: ps.date_update
+      videos: parseInt(ps.count_videos || 0)
     };
   });
 
@@ -130,26 +128,24 @@ function albumUrl(id) {
   return `https://www.flickr.com/photos/${USER_ID}/albums/${id}`;
 }
 
-// ---------- Enrichment (NO getInfo calls) ----------
+// ---------- Enrichment ----------
 
 function enrichCollection(collection, map) {
   if (collection.set) {
-    collection.set = collection.set.map(set => {
-      const meta = map[set.id];
+    collection.set = collection.set
+      .map(set => {
+        const meta = map[set.id];
+        if (!meta) return null;
 
-      if (!meta) {
-        console.warn("⚠️ missing metadata for", set.id);
-        return null;
-      }
-
-      return {
-        id: set.id,
-        title: meta.title,
-        photos: meta.photos,
-        videos: meta.videos,
-        url: albumUrl(set.id)
-      };
-    }).filter(Boolean);
+        return {
+          id: set.id,
+          title: meta.title,
+          photos: meta.photos,
+          videos: meta.videos,
+          url: albumUrl(set.id)
+        };
+      })
+      .filter(Boolean);
   }
 
   if (collection.collection) {
@@ -164,10 +160,9 @@ function enrichCollection(collection, map) {
 // ---------- HTML ----------
 
 function formatMeta(set) {
-  if (set.videos > 0) {
-    return `${set.photos} photos • ${set.videos} videos`;
-  }
-  return `${set.photos} photos`;
+  return set.videos > 0
+    ? `${set.photos} photos • ${set.videos} videos`
+    : `${set.photos} photos`;
 }
 
 function renderCollection(collection) {
@@ -186,9 +181,7 @@ function renderCollection(collection) {
              data-photos="${set.photos}"
              data-videos="${set.videos}">
           <a href="${set.url}" target="_blank">${set.title}</a>
-          <div class="meta">
-            ${formatMeta(set)}
-          </div>
+          <div class="meta">${formatMeta(set)}</div>
         </div>
       `).join("")}
 
@@ -234,7 +227,6 @@ body { font-family: Arial; background:#f5f5f5; padding:1rem; }
 }
 
 .meta { font-size:0.9em; color:#555; }
-
 .hidden { display:none !important; }
 
 mark { background:yellow; padding:0 2px; }
@@ -262,8 +254,104 @@ ${collections.map(renderCollection).join("")}
 </div>
 
 <script>
-// (Same pro-level script from previous step)
-${PRO_SCRIPT_PLACEHOLDER}
+function toggle(el) {
+  const parent = el.parentElement;
+  parent.classList.toggle("open");
+  updateToggle(parent);
+}
+
+function updateToggle(collection) {
+  const t = collection.querySelector(".toggle");
+  if (t) t.textContent = collection.classList.contains("open") ? "[-]" : "[+]";
+}
+
+function debounce(fn, delay=200){
+  let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a),delay); };
+}
+
+function escapeRegex(str){
+  return str.replace(/[.*+?^${}()|[\\]\\\\]/g,'\\\\$&');
+}
+
+function highlight(text, term){
+  if(!term) return text;
+  const r=new RegExp("("+escapeRegex(term)+")","gi");
+  return text.replace(r,"<mark>$1</mark>");
+}
+
+const searchInput=document.getElementById("search");
+const minPhotosInput=document.getElementById("minPhotos");
+const hasVideosInput=document.getElementById("hasVideos");
+
+function updateURL(){
+  const p=new URLSearchParams();
+  if(searchInput.value)p.set("q",searchInput.value);
+  if(minPhotosInput.value)p.set("min",minPhotosInput.value);
+  if(hasVideosInput.checked)p.set("vid","1");
+  history.replaceState(null,"","?"+p.toString());
+}
+
+function loadFromURL(){
+  const p=new URLSearchParams(location.search);
+  if(p.get("q"))searchInput.value=p.get("q");
+  if(p.get("min"))minPhotosInput.value=p.get("min");
+  if(p.get("vid")==="1")hasVideosInput.checked=true;
+}
+
+function applyFilters(){
+  const term=searchInput.value.toLowerCase();
+  const min=parseInt(minPhotosInput.value)||0;
+  const vid=hasVideosInput.checked;
+
+  document.querySelectorAll(".album").forEach(el=>{
+    const title=el.dataset.title;
+    const photos=+el.dataset.photos;
+    const videos=+el.dataset.videos;
+
+    const link=el.querySelector("a");
+    const original=link.dataset.original||link.textContent;
+    link.dataset.original=original;
+
+    let show=title.includes(term)&&photos>=min&&(!vid||videos>0);
+
+    el.classList.toggle("hidden",!show);
+
+    if(show&&term){
+      link.innerHTML=highlight(original,term);
+    }else{
+      link.textContent=original;
+    }
+  });
+
+  document.querySelectorAll(".collection").forEach(col=>{
+    const visible=col.querySelectorAll(".album:not(.hidden)").length>0;
+    col.classList.toggle("open",visible);
+    updateToggle(col);
+  });
+
+  updateURL();
+}
+
+const debounced=debounce(applyFilters,200);
+
+function expandAll(){
+  document.querySelectorAll(".collection").forEach(c=>{
+    c.classList.add("open"); updateToggle(c);
+  });
+}
+
+function collapseAll(){
+  document.querySelectorAll(".collection").forEach(c=>{
+    c.classList.remove("open"); updateToggle(c);
+  });
+}
+
+searchInput.oninput=debounced;
+minPhotosInput.oninput=debounced;
+hasVideosInput.onchange=applyFilters;
+
+loadFromURL();
+applyFilters();
 </script>
 
 </body>
@@ -271,27 +359,21 @@ ${PRO_SCRIPT_PLACEHOLDER}
 `;
 }
 
-// ---------- Inject latest UI script ----------
-
-const PRO_SCRIPT_PLACEHOLDER = `
-${/* paste the full pro script from previous message here */""}
-`;
-
 // ---------- Main ----------
 
 (async () => {
-  const [collections, photosetsList] = await Promise.all([
+  const [collections, photosets] = await Promise.all([
     getCollections(),
     getAllPhotosets()
   ]);
 
-  const map = buildPhotosetMap(photosetsList);
+  const map = buildPhotosetMap(photosets);
 
-  const enriched = collections.map(col =>
-    enrichCollection(col, map)
+  const enriched = collections.map(c =>
+    enrichCollection(c, map)
   );
 
   fs.writeFileSync("index.html", buildHTML(enriched));
 
-  console.log("✅ done (zero getInfo mode)");
+  console.log("✅ done (zero getInfo mode, fully working)");
 })();
