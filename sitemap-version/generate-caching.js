@@ -57,6 +57,44 @@ async function flickrCall(method, params = {}) {
   return res.json();
 }
 
+async function getUserInfo() {
+  const cached = readCache("user_info");
+  if (cached) {
+    console.log("📦 user info cache");
+    return cached;
+  }
+
+  console.log("🌐 fetching user info");
+
+  const data = await flickrCall("flickr.people.getInfo", {
+    user_id: USER_ID
+  });
+
+  const person = data.person;
+
+  const user = {
+    username: person.username._content,
+    realname: person.realname._content,
+    nsid: person.nsid,
+    iconfarm: person.iconfarm,
+    iconserver: person.iconserver
+  };
+
+  writeCache("user_info", user);
+  return user;
+}
+
+function getAvatarUrl(user) {
+  if (user.iconserver > 0) {
+    return `https://farm${user.iconfarm}.staticflickr.com/${user.iconserver}/buddyicons/${user.nsid}.jpg`;
+  }
+  return "https://www.flickr.com/images/buddyicon.gif";
+}
+
+function profileUrl(user) {
+  return `https://www.flickr.com/photos/${user.nsid}`;
+}
+
 // ---------- Collections ----------
 
 async function getCollections() {
@@ -261,14 +299,17 @@ function formatCollectionMeta(stats) {
   return parts.join(" • ");
 }
 
-function buildHTML(collections) {
+function buildHTML(collections, user) {
+const displayName = user.realname || user.username;
+const avatar = getAvatarUrl(user);
+const profile = profileUrl(user);
   return `
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Flickr Sitemap</title>
+<title>${displayName} – Flickr Sitemap</title>
 
 <style>
 body { font-family: Arial; background:#f5f5f5; padding:1rem; }
@@ -314,12 +355,37 @@ mark { background:yellow; padding:0 2px; }
 @media (max-width:600px) {
   .album { flex-direction:column; }
 }
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: center;
+}
+
+.header img {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+.header a {
+  text-decoration: none;
+  color: black;
+}
+
+.header a:hover {
+  text-decoration: underline;
+}
 </style>
 </head>
 
 <body>
 
-<h1>Flickr Sitemap</h1>
+<h1 class="header">
+  <img src="${avatar}" alt="avatar">
+  <a href="${profile}" target="_blank">${displayName}</a>'s Flickr sitemap
+</h1>
 
 <div class="controls">
   <input type="text" id="search" placeholder="Search albums...">
@@ -442,9 +508,10 @@ applyFilters();
 // ---------- Main ----------
 
 (async () => {
-  const [collections, photosets] = await Promise.all([
+  const [collections, photosets, user] = await Promise.all([
     getCollections(),
-    getAllPhotosets()
+    getAllPhotosets(),
+    getUserInfo()
   ]);
 
   const map = buildPhotosetMap(photosets);
@@ -455,7 +522,7 @@ applyFilters();
 
   enriched.forEach(computeStats);
 
-  fs.writeFileSync("index.html", buildHTML(enriched));
+  fs.writeFileSync("index.html", buildHTML(enriched, user));
 
-  console.log("✅ done (zero getInfo mode, fully working)");
+  console.log("✅ done (user header added)");
 })();
