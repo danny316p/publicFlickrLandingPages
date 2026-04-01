@@ -75,6 +75,48 @@ async function getCollections() {
   return data.collections.collection;
 }
 
+function collectionUrl(id) {
+  const parts = id.split("-");
+  const realId = parts[parts.length - 1];
+  return `https://www.flickr.com/photos/${USER_ID}/collections/${realId}`;
+}
+
+function computeStats(collection) {
+  let stats = {
+    collections: 0,
+    albums: 0,
+    photos: 0,
+    videos: 0
+  };
+
+  // Albums
+  if (collection.set) {
+    stats.albums += collection.set.length;
+
+    collection.set.forEach(set => {
+      stats.photos += set.photos;
+      stats.videos += set.videos;
+    });
+  }
+
+  // Sub-collections
+  if (collection.collection) {
+    stats.collections += collection.collection.length;
+
+    collection.collection.forEach(sub => {
+      const subStats = computeStats(sub);
+
+      stats.collections += subStats.collections;
+      stats.albums += subStats.albums;
+      stats.photos += subStats.photos;
+      stats.videos += subStats.videos;
+    });
+  }
+
+  collection._stats = stats;
+  return stats;
+}
+
 // ---------- Photosets ----------
 
 async function getAllPhotosets() {
@@ -167,10 +209,19 @@ function formatMeta(set) {
 }
 
 function renderCollection(collection) {
+  const stats = collection._stats || {};
+
   return `
   <div class="collection">
     <div class="collection-header" onclick="toggle(this)">
-      <span>${collection.title}</span>
+      <span>
+        <a href="${collectionUrl(collection.id)}" target="_blank">
+          ${collection.title}
+        </a>
+        <div class="meta">
+          ${formatCollectionMeta(stats)}
+        </div>
+      </span>
       <span class="toggle">[+]</span>
     </div>
 
@@ -191,6 +242,23 @@ function renderCollection(collection) {
     </div>
   </div>
   `;
+}
+
+function formatCollectionMeta(stats) {
+  let parts = [];
+
+  if (stats.collections > 0) {
+    parts.push(`${stats.collections} collections`);
+  }
+
+  parts.push(`${stats.albums} albums`);
+  parts.push(`${stats.photos} photos`);
+
+  if (stats.videos > 0) {
+    parts.push(`${stats.videos} videos`);
+  }
+
+  return parts.join(" • ");
 }
 
 function buildHTML(collections) {
@@ -222,6 +290,17 @@ body { font-family: Arial; background:#f5f5f5; padding:1rem; }
 
 .children { display:none; margin-left:20px; }
 .collection.open > .children { display:block; }
+
+.collection-header > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.collection-header .meta {
+  font-size: 0.85em;
+  color: #666;
+  font-weight: normal;
+}
 
 .album {
   display:flex; justify-content:space-between; flex-wrap:wrap;
@@ -373,6 +452,8 @@ applyFilters();
   const enriched = collections.map(c =>
     enrichCollection(c, map)
   );
+
+  enriched.forEach(computeStats);
 
   fs.writeFileSync("index.html", buildHTML(enriched));
 
