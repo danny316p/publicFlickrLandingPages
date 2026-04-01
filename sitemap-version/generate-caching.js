@@ -95,6 +95,27 @@ function profileUrl(user) {
   return `https://www.flickr.com/photos/${user.nsid}`;
 }
 
+async function getTotalPhotoCount() {
+  const cached = readCache("total_photos");
+  if (cached) {
+    console.log("📦 total photos cache");
+    return cached;
+  }
+
+  console.log("🌐 fetching total photo count");
+
+  const data = await flickrCall("flickr.people.getPhotos", {
+    user_id: USER_ID,
+    per_page: 1,
+    page: 1
+  });
+
+  const total = parseInt(data.photos.total || 0);
+
+  writeCache("total_photos", total);
+  return total;
+}
+
 // ---------- Collections ----------
 
 async function getCollections() {
@@ -153,6 +174,20 @@ function computeStats(collection) {
 
   collection._stats = stats;
   return stats;
+}
+
+function countCollections(collections) {
+  let count = 0;
+
+  function walk(col) {
+    count++;
+    if (col.collection) {
+      col.collection.forEach(walk);
+    }
+  }
+
+  collections.forEach(walk);
+  return count;
 }
 
 // ---------- Photosets ----------
@@ -242,8 +277,8 @@ function enrichCollection(collection, map) {
 
 function formatMeta(set) {
   return set.videos > 0
-    ? `${set.photos} photos • ${set.videos} videos`
-    : `${set.photos} photos`;
+    ? `${set.photos.toLocaleString()} photos • ${set.videos} videos`
+    : `${set.photos.toLocaleString()} photos`;
 }
 
 function renderCollection(collection) {
@@ -289,8 +324,8 @@ function formatCollectionMeta(stats) {
     parts.push(`${stats.collections} collections`);
   }
 
-  parts.push(`${stats.albums} albums`);
-  parts.push(`${stats.photos} photos`);
+  parts.push(`${stats.albums.toLocaleString()} albums`);
+  parts.push(`${stats.photos.toLocaleString()} photos`);
 
   if (stats.videos > 0) {
     parts.push(`${stats.videos} videos`);
@@ -299,10 +334,15 @@ function formatCollectionMeta(stats) {
   return parts.join(" • ");
 }
 
-function buildHTML(collections, user) {
-const displayName = user.realname || user.username;
-const avatar = getAvatarUrl(user);
-const profile = profileUrl(user);
+function buildHTML(collections, user, totals) {
+  const displayName = user.realname || user.username;
+  const avatar = getAvatarUrl(user);
+  const profile = profileUrl(user);
+  const subtitle = `
+    ${totals.collections} collections •
+    ${totals.albums} albums •
+    ${totals.photos.toLocaleString()} photos
+  `;
   return `
 <!DOCTYPE html>
 <html>
@@ -357,10 +397,22 @@ mark { background:yellow; padding:0 2px; }
 }
 
 .header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+
   display: flex;
   align-items: center;
   gap: 12px;
-  justify-content: center;
+
+  background: white;
+  padding: 10px 16px;
+  border-bottom: 1px solid #ddd;
+
+  margin-bottom: 10px;
+
+  backdrop-filter: blur(8px);
+  background: rgba(255,255,255,0.9);
 }
 
 .header img {
@@ -369,7 +421,14 @@ mark { background:yellow; padding:0 2px; }
   border-radius: 50%;
 }
 
+.header-text {
+  display: flex;
+  flex-direction: column;
+}
+
 .header a {
+  font-size: 1.2em;
+  font-weight: bold;
   text-decoration: none;
   color: black;
 }
@@ -377,15 +436,23 @@ mark { background:yellow; padding:0 2px; }
 .header a:hover {
   text-decoration: underline;
 }
+
+.subtitle {
+  font-size: 0.85em;
+  color: #666;
+}
 </style>
 </head>
 
 <body>
 
-<h1 class="header">
+<div class="header">
   <img src="${avatar}" alt="avatar">
-  <a href="${profile}" target="_blank">${displayName}</a>'s Flickr sitemap
-</h1>
+  <div class="header-text">
+    <a href="${profile}" target="_blank">${displayName}</a>
+    <div class="subtitle">${subtitle}</div>
+  </div>
+</div>
 
 <div class="controls">
   <input type="text" id="search" placeholder="Search albums...">
@@ -508,10 +575,11 @@ applyFilters();
 // ---------- Main ----------
 
 (async () => {
-  const [collections, photosets, user] = await Promise.all([
+  const [collections, photosets, user, totalPhotos] = await Promise.all([
     getCollections(),
     getAllPhotosets(),
-    getUserInfo()
+    getUserInfo(),
+    getTotalPhotoCount()
   ]);
 
   const map = buildPhotosetMap(photosets);
@@ -522,7 +590,11 @@ applyFilters();
 
   enriched.forEach(computeStats);
 
-  fs.writeFileSync("index.html", buildHTML(enriched, user));
+  const totals = {
+    albums: photosets.length,
+    collections: countCollections(enriched),
+    photos: totalPhotos
+  };
 
-  console.log("✅ done (user header added)");
+  fs.writeFileSync("index.html", buildHTML(enriched, user, totals));
 })();
