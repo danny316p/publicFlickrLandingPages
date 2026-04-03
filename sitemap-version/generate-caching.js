@@ -447,7 +447,7 @@ mark { background:yellow; padding:0 2px; }
 <body>
 
 <div class="header">
-  <img src="${avatar}" alt="avatar">
+  <a href="${profile}" target="_blank"><img src="${avatar}" alt="avatar"></a>
   <div class="header-text">
     <a href="${profile}" target="_blank">${displayName}</a>
     <div class="subtitle">${subtitle}</div>
