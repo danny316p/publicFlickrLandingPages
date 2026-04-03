@@ -2,12 +2,14 @@ const fs = require("fs");
 const path = require("path");
 const fetch = require("node-fetch");
 
-const API_KEY = "YOUR_FLICKR_API_KEY";
-const USER_ID = "YOUR_FLICKR_USER_ID";
+var config_consts = require("../secrets/config.js");
+const API_KEY = config_consts.API_KEY;
+const USER_ID = config_consts.USER_ID;
+
 
 const API = "https://www.flickr.com/services/rest/";
 const CACHE_DIR = path.join(__dirname, ".cache");
-const CACHE_TTL = 1000 * 60 * 60 * 24;
+const CACHE_TTL = 1000 * 60 * 60 * 24 * 7;
 
 const FORCE_REFRESH = process.argv.includes("--refresh");
 
