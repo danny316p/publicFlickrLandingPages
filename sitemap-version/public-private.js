@@ -339,9 +339,34 @@ body.list .album-card img{width:80px;height:80px;margin-right:10px}
 ${collections.map(render).join("")}
 
 <script>
-function toggle(el){el.parentElement.classList.toggle("open")}
-function expandAll(){document.querySelectorAll(".collection").forEach(c=>c.classList.add("open"))}
-function collapseAll(){document.querySelectorAll(".collection").forEach(c=>c.classList.remove("open"))}
+function toggle(header){
+  const col = header.parentElement;
+  col.classList.toggle("open");
+
+  // Update the [+]/[-] indicator
+  const indicator = header.querySelector("span:last-child");
+  if (col.classList.contains("open")) {
+    indicator.textContent = "[-]";
+  } else {
+    indicator.textContent = "[+]";
+  }
+}
+
+function expandAll(){
+  document.querySelectorAll(".collection").forEach(c=>{
+    c.classList.add("open");
+    const indicator = c.querySelector(".collection-header span:last-child");
+    if (indicator) indicator.textContent="[-]";
+  });
+}
+
+function collapseAll(){
+  document.querySelectorAll(".collection").forEach(c=>{
+    c.classList.remove("open");
+    const indicator = c.querySelector(".collection-header span:last-child");
+    if (indicator) indicator.textContent="[+]";
+  });
+}
 
 function setView(v){
   document.body.classList.remove("grid","list");
