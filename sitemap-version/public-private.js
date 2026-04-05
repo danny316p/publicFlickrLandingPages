@@ -17,7 +17,7 @@ const OAUTH_TOKEN = config_consts.OAUTH_TOKEN;
 const OAUTH_TOKEN_SECRET = config_consts.OAUTH_TOKEN_SECRET;
 
 const CACHE_DIR = path.join(__dirname, ".cache");
-const CACHE_TTL = 1000 * 60 * 60 * 24;
+const CACHE_TTL = 1000 * 60 * 60 * 24 * 7;
 const FORCE_REFRESH = process.argv.includes("--refresh");
 
 if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR);
@@ -220,6 +220,14 @@ function countCols(cols){
     });
   })(cols);
   return n;
+}
+
+function avatarUrl(user) {
+  // If iconserver = 0, use default buddy icon
+  if (!user.iconserver || parseInt(user.iconserver) === 0) {
+    return "https://www.flickr.com/images/buddyicon.gif";
+  }
+  return `https://farm${user.iconfarm}.staticflickr.com/${user.iconserver}/buddyicons/${user.nsid}.jpg`;
 }
 
 // ---------- HTML ----------
