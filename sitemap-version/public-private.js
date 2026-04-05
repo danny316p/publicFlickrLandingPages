@@ -3,12 +3,14 @@ const fetch = require("node-fetch");
 const OAuth = require("oauth-1.0a");
 const crypto = require("crypto");
 
-const API_KEY = "YOUR_API_KEY";
-const API_SECRET = "YOUR_API_SECRET";
-const USER_ID = "YOUR_USER_ID";
+var config_consts = require("../secrets/config.js");
+const API_KEY = config_consts.API_KEY;
+const API_SECRET = config_consts.API_SECRET;
 
-const OAUTH_TOKEN = "YOUR_OAUTH_TOKEN";
-const OAUTH_TOKEN_SECRET = "YOUR_OAUTH_TOKEN_SECRET";
+const USER_ID = config_consts.USER_ID;
+
+const OAUTH_TOKEN = config_consts.OAUTH_TOKEN;
+const OAUTH_TOKEN_SECRET = config_consts.OAUTH_TOKEN_SECRET;
 
 const oauth = OAuth({
   consumer: { key: API_KEY, secret: API_SECRET },
