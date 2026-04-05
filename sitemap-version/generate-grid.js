@@ -356,17 +356,29 @@ function loadView(){
 
 // ---------- Filter ----------
 function filter(){
-  const q=document.getElementById("search").value.toLowerCase();
-  const min=+document.getElementById("minPhotos").value||0;
-  const vid=document.getElementById("hasVideos").checked;
+  const q = document.getElementById("search").value.toLowerCase();
+  const min = +document.getElementById("minPhotos").value || 0;
+  const vid = document.getElementById("hasVideos").checked;
 
+  // --- Filter albums ---
   document.querySelectorAll(".album-card").forEach(el=>{
-    const t=el.dataset.title;
-    const p=+el.dataset.photos;
-    const v=+el.dataset.videos;
+    const t = el.dataset.title;
+    const p = +el.dataset.photos;
+    const v = +el.dataset.videos;
 
-    const show=t.includes(q)&&p>=min&&(!vid||v>0);
-    el.classList.toggle("hidden",!show);
+    const show = t.includes(q) && p >= min && (!vid || v > 0);
+    el.classList.toggle("hidden", !show);
+  });
+
+  // --- Expand/collapse collections based on visibility ---
+  document.querySelectorAll(".collection").forEach(col => {
+    const visibleAlbums = col.querySelectorAll(".album-card:not(.hidden)");
+
+    if (visibleAlbums.length > 0) {
+      col.classList.add("open");
+    } else {
+      col.classList.remove("open");
+    }
   });
 }
 
