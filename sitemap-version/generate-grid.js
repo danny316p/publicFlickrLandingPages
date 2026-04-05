@@ -6,258 +6,204 @@ var config_consts = require("../secrets/config.js");
 const API_KEY = config_consts.API_KEY;
 const USER_ID = config_consts.USER_ID;
 
-
 const API = "https://www.flickr.com/services/rest/";
 const CACHE_DIR = path.join(__dirname, ".cache");
 const CACHE_TTL = 1000 * 60 * 60 * 24 * 7;
-
 const FORCE_REFRESH = process.argv.includes("--refresh");
 
 if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR);
 
 // ---------- Cache ----------
-
-function cachePath(key) {
-  return path.join(CACHE_DIR, key + ".json");
-}
-
-function readCache(key) {
-  const file = cachePath(key);
-  if (!fs.existsSync(file)) return null;
-
-  if (!FORCE_REFRESH) {
-    const age = Date.now() - fs.statSync(file).mtimeMs;
-    if (age < CACHE_TTL) {
-      return JSON.parse(fs.readFileSync(file));
-    }
+function cachePath(key){ return path.join(CACHE_DIR, key + ".json"); }
+function readCache(key){
+  const f = cachePath(key);
+  if (!fs.existsSync(f)) return null;
+  if (!FORCE_REFRESH){
+    const age = Date.now() - fs.statSync(f).mtimeMs;
+    if (age < CACHE_TTL) return JSON.parse(fs.readFileSync(f));
   }
-
   return null;
 }
-
-function writeCache(key, data) {
-  fs.writeFileSync(cachePath(key), JSON.stringify(data, null, 2));
+function writeCache(key,data){
+  fs.writeFileSync(cachePath(key), JSON.stringify(data,null,2));
 }
 
 // ---------- Flickr ----------
-
-async function flickrCall(method, params = {}) {
+async function flickrCall(method, params={}){
   const url = new URL(API);
   url.searchParams.set("method", method);
   url.searchParams.set("api_key", API_KEY);
-  url.searchParams.set("format", "json");
-  url.searchParams.set("nojsoncallback", "1");
-
-  Object.entries(params).forEach(([k, v]) =>
-    url.searchParams.set(k, v)
-  );
-
-  const res = await fetch(url);
-  return res.json();
+  url.searchParams.set("format","json");
+  url.searchParams.set("nojsoncallback","1");
+  Object.entries(params).forEach(([k,v])=>url.searchParams.set(k,v));
+  return (await fetch(url)).json();
 }
 
 // ---------- Data ----------
-
-async function getCollections() {
-  const cached = readCache("collections");
-  if (cached) return cached;
-
-  const data = await flickrCall("flickr.collections.getTree", {
-    user_id: USER_ID
-  });
-
-  writeCache("collections", data.collections.collection);
-  return data.collections.collection;
+async function getCollections(){
+  const c = readCache("collections");
+  if (c) return c;
+  const d = await flickrCall("flickr.collections.getTree",{user_id:USER_ID});
+  writeCache("collections", d.collections.collection);
+  return d.collections.collection;
 }
 
-async function getAllPhotosets() {
-  const cached = readCache("photosets_list");
-  if (cached) return cached;
-
-  let page = 1, pages = 1, all = [];
-
-  while (page <= pages) {
-    const data = await flickrCall("flickr.photosets.getList", {
-      user_id: USER_ID,
-      page,
-      per_page: 500
-    });
-
-    pages = data.photosets.pages;
-    all.push(...data.photosets.photoset);
+async function getAllPhotosets(){
+  const c = readCache("photosets_list");
+  if (c) return c;
+  let page=1,pages=1,all=[];
+  while(page<=pages){
+    const d = await flickrCall("flickr.photosets.getList",{user_id:USER_ID,page,per_page:500});
+    pages=d.photosets.pages;
+    all.push(...d.photosets.photoset);
     page++;
   }
-
   writeCache("photosets_list", all);
   return all;
 }
 
-async function getUserInfo() {
-  const cached = readCache("user_info");
-  if (cached) return cached;
-
-  const data = await flickrCall("flickr.people.getInfo", {
-    user_id: USER_ID
-  });
-
-  const p = data.person;
-
-  const user = {
-    username: p.username._content,
-    realname: p.realname._content,
-    nsid: p.nsid,
-    pathAlias: p.path_alias,
-    iconfarm: p.iconfarm,
-    iconserver: p.iconserver
+async function getUserInfo(){
+  const c = readCache("user_info");
+  if (c) return c;
+  const d = await flickrCall("flickr.people.getInfo",{user_id:USER_ID});
+  const p=d.person;
+  const user={
+    username:p.username._content,
+    realname:p.realname._content,
+    nsid:p.nsid,
+    pathAlias:p.path_alias,
+    iconfarm:p.iconfarm,
+    iconserver:p.iconserver
   };
-
-  writeCache("user_info", user);
+  writeCache("user_info",user);
   return user;
 }
 
-async function getTotalPhotoCount() {
-  const cached = readCache("total_photos");
-  if (cached) return cached;
-
-  const data = await flickrCall("flickr.people.getPhotos", {
-    user_id: USER_ID,
-    per_page: 1
-  });
-
-  const total = parseInt(data.photos.total || 0);
-  writeCache("total_photos", total);
+async function getTotalPhotoCount(){
+  const c = readCache("total_photos");
+  if (c) return c;
+  const d = await flickrCall("flickr.people.getPhotos",{user_id:USER_ID,per_page:1});
+  const total=parseInt(d.photos.total||0);
+  writeCache("total_photos",total);
   return total;
 }
 
 // ---------- Helpers ----------
+const realId = id => id.split("-").pop();
+const baseUser = u => u.pathAlias || u.nsid;
 
-function getRealCollectionId(id) {
-  return id.split("-").pop();
-}
+const collectionUrl = (id,u)=>
+  `https://www.flickr.com/photos/${baseUser(u)}/collections/${realId(id)}`;
 
-function collectionUrl(id, user) {
-  const base = user.pathAlias || user.nsid;
-  return `https://www.flickr.com/photos/${base}/collections/${getRealCollectionId(id)}`;
-}
+const albumUrl = id =>
+  `https://www.flickr.com/photos/${USER_ID}/albums/${id}`;
 
-function albumUrl(id) {
-  return `https://www.flickr.com/photos/${USER_ID}/albums/${id}`;
-}
-
-function getAvatarUrl(user) {
-  return user.iconserver > 0
-    ? `https://farm${user.iconfarm}.staticflickr.com/${user.iconserver}/buddyicons/${user.nsid}.jpg`
+const avatarUrl = u =>
+  u.iconserver>0
+    ? `https://farm${u.iconfarm}.staticflickr.com/${u.iconserver}/buddyicons/${u.nsid}.jpg`
     : "https://www.flickr.com/images/buddyicon.gif";
-}
 
-function getThumbnailUrl(ps) {
-  if (!ps.primary || !ps.secret || !ps.server || !ps.farm) return null;
-  return `https://farm${ps.farm}.staticflickr.com/${ps.server}/${ps.primary}_${ps.secret}_q.jpg`;
-}
+const thumbUrl = ps =>
+  ps.primary && ps.secret && ps.server && ps.farm
+    ? `https://farm${ps.farm}.staticflickr.com/${ps.server}/${ps.primary}_${ps.secret}_q.jpg`
+    : null;
 
 // ---------- Map ----------
-
-function buildPhotosetMap(list) {
-  const map = {};
-  list.forEach(ps => {
-    map[ps.id] = {
-      title: ps.title._content,
-      photos: +ps.count_photos,
-      videos: +ps.count_videos,
-      primary: ps.primary,
-      farm: ps.farm,
-      server: ps.server,
-      secret: ps.secret
+function buildMap(list){
+  const m={};
+  list.forEach(ps=>{
+    m[ps.id]={
+      title:ps.title._content,
+      photos:+ps.count_photos,
+      videos:+ps.count_videos,
+      primary:ps.primary,
+      farm:ps.farm,
+      server:ps.server,
+      secret:ps.secret
     };
   });
-  return map;
+  return m;
 }
 
 // ---------- Enrich ----------
+function enrich(col,map){
+  col.id = realId(col.id);
 
-function enrichCollection(col, map) {
-  col.id = getRealCollectionId(col.id);
-
-  if (col.set) {
-    col.set = col.set.map(s => {
-      const m = map[s.id];
+  if (col.set){
+    col.set = col.set.map(s=>{
+      const m=map[s.id];
       if (!m) return null;
-
       return {
-        id: s.id,
-        title: m.title,
-        photos: m.photos,
-        videos: m.videos,
-        url: albumUrl(s.id),
-        thumb: getThumbnailUrl(m)
+        id:s.id,
+        title:m.title,
+        photos:m.photos,
+        videos:m.videos,
+        url:albumUrl(s.id),
+        thumb:thumbUrl(m)
       };
     }).filter(Boolean);
   }
 
-  if (col.collection) {
-    col.collection = col.collection.map(c => enrichCollection(c, map));
+  if (col.collection){
+    col.collection = col.collection.map(c=>enrich(c,map));
   }
 
   return col;
 }
 
 // ---------- Stats ----------
+function stats(col){
+  let s={collections:0,albums:0,photos:0,videos:0};
 
-function computeStats(col) {
-  let stats = { collections: 0, albums: 0, photos: 0, videos: 0 };
-
-  if (col.set) {
-    stats.albums += col.set.length;
-    col.set.forEach(s => {
-      stats.photos += s.photos;
-      stats.videos += s.videos;
+  if(col.set){
+    s.albums+=col.set.length;
+    col.set.forEach(x=>{
+      s.photos+=x.photos;
+      s.videos+=x.videos;
     });
   }
 
-  if (col.collection) {
-    stats.collections += col.collection.length;
-    col.collection.forEach(sub => {
-      const subStats = computeStats(sub);
-      stats.collections += subStats.collections;
-      stats.albums += subStats.albums;
-      stats.photos += subStats.photos;
-      stats.videos += subStats.videos;
+  if(col.collection){
+    s.collections+=col.collection.length;
+    col.collection.forEach(c=>{
+      const sub=stats(c);
+      s.collections+=sub.collections;
+      s.albums+=sub.albums;
+      s.photos+=sub.photos;
+      s.videos+=sub.videos;
     });
   }
 
-  col._stats = stats;
-  return stats;
+  col._stats=s;
+  return s;
 }
 
-function countCollections(cols) {
-  let c = 0;
-  (function walk(arr){
-    arr.forEach(x=>{
-      c++;
-      if(x.collection) walk(x.collection);
+function countCols(cols){
+  let n=0;
+  (function walk(a){
+    a.forEach(c=>{
+      n++;
+      if(c.collection) walk(c.collection);
     });
   })(cols);
-  return c;
+  return n;
 }
 
 // ---------- HTML ----------
+function buildHTML(collections,user,totals){
+const name=user.realname||user.username;
 
-function buildHTML(collections, user, totals) {
-  const name = user.realname || user.username;
-  const avatar = getAvatarUrl(user);
-  const profile = `https://www.flickr.com/photos/${user.pathAlias || user.nsid}`;
-
-  function renderCollection(col) {
-    return `
+function render(col){
+return `
 <div class="collection">
   <div class="collection-header" onclick="toggle(this)">
     <span>
-      <a href="${collectionUrl(col.id, user)}" target="_blank">${col.title}</a>
+      <a href="${collectionUrl(col.id,user)}" target="_blank">${col.title}</a>
       <div class="meta">
         ${col._stats.collections} collections •
         ${col._stats.albums} albums •
         ${col._stats.photos} photos
-        ${col._stats.videos ? `• ${col._stats.videos} videos` : ""}
+        ${col._stats.videos?`• ${col._stats.videos} videos`:""}
       </div>
     </span>
     <span class="toggle">[+]</span>
@@ -265,34 +211,33 @@ function buildHTML(collections, user, totals) {
 
   <div class="children">
 
-    <div class="album-grid">
-      ${(col.set || []).map(s => `
+    <div class="albums">
+      ${(col.set||[]).map(s=>`
         <a class="album-card"
            href="${s.url}" target="_blank"
            data-title="${s.title.toLowerCase()}"
            data-photos="${s.photos}"
            data-videos="${s.videos}">
 
-          ${s.thumb ? `<img src="${s.thumb}" loading="lazy" alt="${s.title}">` : ""}
+          ${s.thumb?`<img src="${s.thumb}" loading="lazy">`:""}
 
           <div class="album-info">
             <div class="album-title">${s.title}</div>
             <div class="meta">
-              ${s.photos} photos ${s.videos ? `• ${s.videos} videos` : ""}
+              ${s.photos} photos ${s.videos?`• ${s.videos} videos`:""}
             </div>
           </div>
-
         </a>
       `).join("")}
     </div>
 
-    ${(col.collection || []).map(renderCollection).join("")}
+    ${(col.collection||[]).map(render).join("")}
 
   </div>
 </div>`;
-  }
+}
 
-  return `<!DOCTYPE html>
+return `<!DOCTYPE html>
 <html>
 <head>
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -307,7 +252,6 @@ body{font-family:Arial;background:#f5f5f5;margin:0}
   padding:10px;border-bottom:1px solid #ddd;
   z-index:1000;
 }
-
 .header img{width:48px;height:48px;border-radius:50%}
 
 .controls{
@@ -316,32 +260,42 @@ body{font-family:Arial;background:#f5f5f5;margin:0}
 }
 
 .collection{margin:10px}
-
 .collection-header{
   background:#fff;padding:10px;border-radius:8px;
   cursor:pointer;display:flex;justify-content:space-between;
 }
-
 .children{display:none;margin-left:10px}
 .collection.open>.children{display:block}
 
-.album-grid{
+/* GRID VIEW */
+body.grid .albums{
   display:grid;
   grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
   gap:10px;
-  margin-top:10px;
 }
 
+/* LIST VIEW */
+body.list .albums{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+body.list .album-card{
+  display:flex;
+  align-items:center;
+}
+body.list .album-card img{
+  width:80px;height:80px;object-fit:cover;margin-right:10px;
+}
+
+/* SHARED */
 .album-card{
   background:#fff;border-radius:8px;
   overflow:hidden;text-decoration:none;color:black;
-  display:flex;flex-direction:column;
 }
-
 .album-card img{
   width:100%;height:140px;object-fit:cover;
 }
-
 .album-info{padding:8px}
 .album-title{font-weight:bold}
 .meta{font-size:.8em;color:#555}
@@ -350,12 +304,12 @@ body{font-family:Arial;background:#f5f5f5;margin:0}
 </style>
 </head>
 
-<body>
+<body class="grid">
 
 <div class="header">
-  <img src="${avatar}">
+  <img src="${avatarUrl(user)}">
   <div>
-    <a href="${profile}" target="_blank">${name}</a>
+    <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank">${name}</a>
     <div class="meta">
       ${totals.collections} collections •
       ${totals.albums} albums •
@@ -368,17 +322,39 @@ body{font-family:Arial;background:#f5f5f5;margin:0}
   <input id="search" placeholder="Search">
   <input id="minPhotos" type="number" placeholder="Min photos">
   <label><input type="checkbox" id="hasVideos"> videos</label>
+
+  <button onclick="setView('grid')">Grid</button>
+  <button onclick="setView('list')">List</button>
+
   <button onclick="expandAll()">Expand all</button>
   <button onclick="collapseAll()">Collapse all</button>
 </div>
 
-${collections.map(renderCollection).join("")}
+${collections.map(render).join("")}
 
 <script>
 function toggle(el){el.parentElement.classList.toggle("open")}
 function expandAll(){document.querySelectorAll(".collection").forEach(c=>c.classList.add("open"))}
 function collapseAll(){document.querySelectorAll(".collection").forEach(c=>c.classList.remove("open"))}
 
+// ---------- View toggle ----------
+function setView(v){
+  document.body.classList.remove("grid","list");
+  document.body.classList.add(v);
+  localStorage.setItem("view",v);
+
+  const p=new URLSearchParams(location.search);
+  p.set("view",v);
+  history.replaceState(null,"","?"+p.toString());
+}
+
+function loadView(){
+  const p=new URLSearchParams(location.search);
+  const v=p.get("view")||localStorage.getItem("view")||"grid";
+  setView(v);
+}
+
+// ---------- Filter ----------
 function filter(){
   const q=document.getElementById("search").value.toLowerCase();
   const min=+document.getElementById("minPhotos").value||0;
@@ -397,6 +373,8 @@ function filter(){
 document.getElementById("search").oninput=filter;
 document.getElementById("minPhotos").oninput=filter;
 document.getElementById("hasVideos").onchange=filter;
+
+loadView();
 </script>
 
 </body>
@@ -404,26 +382,24 @@ document.getElementById("hasVideos").onchange=filter;
 }
 
 // ---------- Main ----------
-
-(async () => {
-  const [collections, photosets, user, totalPhotos] = await Promise.all([
+(async()=>{
+  const [collections,photosets,user,totalPhotos]=await Promise.all([
     getCollections(),
     getAllPhotosets(),
     getUserInfo(),
     getTotalPhotoCount()
   ]);
 
-  const map = buildPhotosetMap(photosets);
-  const enriched = collections.map(c => enrichCollection(c, map));
-  enriched.forEach(computeStats);
+  const map=buildMap(photosets);
+  const enriched=collections.map(c=>enrich(c,map));
+  enriched.forEach(stats);
 
-  const totals = {
-    albums: photosets.length,
-    collections: countCollections(enriched),
-    photos: totalPhotos
+  const totals={
+    albums:photosets.length,
+    collections:countCols(enriched),
+    photos:totalPhotos
   };
 
-  fs.writeFileSync("index.html", buildHTML(enriched, user, totals));
-
-  console.log("✅ done (grid layout version)");
+  fs.writeFileSync("index.html", buildHTML(enriched,user,totals));
+  console.log("✅ done (grid/list toggle)");
 })();
