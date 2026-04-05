@@ -1,6 +1,8 @@
-// FULL FLICKR SITEMAP GENERATOR (PUBLIC + PRIVATE + UI)
+// Flickr Sitemap Generator (FINAL)
+// Features: OAuth, cache, incremental, full UI, public/private split
 
 const fs = require("fs");
+const path = require("path");
 const fetch = require("node-fetch");
 const OAuth = require("oauth-1.0a");
 const crypto = require("crypto");
@@ -11,9 +13,27 @@ const API_KEY = config_consts.API_KEY;
 const API_SECRET = config_consts.API_SECRET;
 
 const USER_ID = config_consts.USER_ID;
-
 const OAUTH_TOKEN = config_consts.OAUTH_TOKEN;
 const OAUTH_TOKEN_SECRET = config_consts.OAUTH_TOKEN_SECRET;
+
+const CACHE_DIR = path.join(__dirname, ".cache");
+const CACHE_TTL = 1000 * 60 * 60 * 24;
+const FORCE_REFRESH = process.argv.includes("--refresh");
+
+if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR);
+
+// ---------- CACHE ----------
+function cacheFile(k){ return path.join(CACHE_DIR, k+".json"); }
+function readCache(k){
+  const f = cacheFile(k);
+  if (!fs.existsSync(f)) return null;
+  if (!FORCE_REFRESH){
+    const age = Date.now() - fs.statSync(f).mtimeMs;
+    if (age < CACHE_TTL) return JSON.parse(fs.readFileSync(f));
+  }
+  return null;
+}
+function writeCache(k,d){ fs.writeFileSync(cacheFile(k), JSON.stringify(d,null,2)); }
 
 // ---------- OAUTH ----------
 const oauth = OAuth({
@@ -23,203 +43,176 @@ const oauth = OAuth({
     return crypto.createHmac("sha1", key).update(base).digest("base64");
   }
 });
-
-const token = {
-  key: OAUTH_TOKEN,
-  secret: OAUTH_TOKEN_SECRET
-};
+const token = { key: OAUTH_TOKEN, secret: OAUTH_TOKEN_SECRET };
 
 // ---------- API ----------
-async function flickrCall(method, params = {}) {
+async function flickrCall(method, params={}){
   const url = "https://www.flickr.com/services/rest/";
-
-  const requestData = {
+  const req = {
     url,
     method: "GET",
-    data: {
-      method,
-      format: "json",
-      nojsoncallback: "1",
-      ...params
-    }
+    data: { method, format:"json", nojsoncallback:"1", ...params }
   };
-
-  const headers = oauth.toHeader(
-    oauth.authorize(requestData, token)
-  );
-
+  const headers = oauth.toHeader(oauth.authorize(req, token));
   const full = new URL(url);
-  Object.entries(requestData.data).forEach(([k, v]) =>
-    full.searchParams.set(k, v)
-  );
-
-  const res = await fetch(full, { headers });
-  return res.json();
+  Object.entries(req.data).forEach(([k,v])=>full.searchParams.set(k,v));
+  return (await fetch(full,{headers})).json();
 }
 
 // ---------- FETCH ----------
-async function getCollections() {
-  const d = await flickrCall("flickr.collections.getTree", {
-    user_id: USER_ID
-  });
+async function getCollections(){
+  const c = readCache("collections");
+  if (c) return c;
+  const d = await flickrCall("flickr.collections.getTree",{user_id:USER_ID});
+  writeCache("collections", d.collections.collection);
   return d.collections.collection;
 }
 
-async function getPhotosets() {
-  let page = 1, pages = 1, all = [];
+async function getPhotosets(){
+  const c = readCache("photosets");
+  if (c) return c;
 
-  while (page <= pages) {
-    const d = await flickrCall("flickr.photosets.getList", {
-      user_id: USER_ID,
-      page,
-      per_page: 500
-    });
-
-    pages = d.photosets.pages;
+  let page=1,pages=1,all=[];
+  while(page<=pages){
+    const d = await flickrCall("flickr.photosets.getList",{user_id:USER_ID,page,per_page:500});
+    pages=d.photosets.pages;
     all.push(...d.photosets.photoset);
     page++;
   }
 
+  writeCache("photosets", all);
   return all;
 }
 
-async function getUserInfo() {
-  const d = await flickrCall("flickr.people.getInfo", {
-    user_id: USER_ID
-  });
-
-  const p = d.person;
-
-  return {
-    username: p.username._content,
-    realname: p.realname._content,
-    nsid: p.nsid,
-    pathAlias: p.path_alias,
-    iconfarm: p.iconfarm,
-    iconserver: p.iconserver
+async function getUser(){
+  const c = readCache("user");
+  if (c) return c;
+  const d = await flickrCall("flickr.people.getInfo",{user_id:USER_ID});
+  const p=d.person;
+  const u={
+    username:p.username._content,
+    realname:p.realname._content,
+    nsid:p.nsid,
+    pathAlias:p.path_alias,
+    iconfarm:p.iconfarm,
+    iconserver:p.iconserver
   };
+  writeCache("user",u);
+  return u;
 }
 
-async function getTotalPhotos() {
-  const d = await flickrCall("flickr.people.getPhotos", {
-    user_id: USER_ID,
-    per_page: 1
-  });
-
-  return parseInt(d.photos.total || 0);
+async function getTotalPhotos(){
+  const c = readCache("total");
+  if (c) return c;
+  const d = await flickrCall("flickr.people.getPhotos",{user_id:USER_ID,per_page:1});
+  const t=parseInt(d.photos.total||0);
+  writeCache("total",t);
+  return t;
 }
 
 // ---------- HELPERS ----------
-const realId = id => id.split("-").pop();
-const baseUser = u => u.pathAlias || u.nsid;
+const realId=id=>id.split("-").pop();
+const baseUser=u=>u.pathAlias||u.nsid;
+const albumUrl=id=>`https://www.flickr.com/photos/${USER_ID}/albums/${id}`;
+const collectionUrl=(id,u)=>`https://www.flickr.com/photos/${baseUser(u)}/collections/${realId(id)}`;
 
-const collectionUrl = (id, u) =>
-  `https://www.flickr.com/photos/${baseUser(u)}/collections/${realId(id)}`;
-
-const albumUrl = id =>
-  `https://www.flickr.com/photos/${USER_ID}/albums/${id}`;
-
-const avatarUrl = u =>
-  u.iconserver > 0
-    ? `https://farm${u.iconfarm}.staticflickr.com/${u.iconserver}/buddyicons/${u.nsid}.jpg`
-    : "https://www.flickr.com/images/buddyicon.gif";
-
-const thumbUrl = ps =>
+const thumb=ps =>
   ps.primary && ps.secret && ps.server && ps.farm
     ? `https://farm${ps.farm}.staticflickr.com/${ps.server}/${ps.primary}_${ps.secret}_q.jpg`
     : null;
 
+// ---------- PUBLIC DETECTION ----------
+function isPublicAlbum(ps){
+  const total = (+ps.photos||0) + (+ps.videos||0);
+  const visible = (+ps.count_photos||0) + (+ps.count_videos||0);
+  return total === visible;
+}
+
 // ---------- MAP ----------
-function buildMap(list) {
-  const m = {};
-  list.forEach(ps => {
-    m[ps.id] = {
-      title: ps.title._content,
-      photos: +ps.count_photos,
-      videos: +ps.count_videos,
-      primary: ps.primary,
-      farm: ps.farm,
-      server: ps.server,
-      secret: ps.secret,
-      isPublic: ps.visibility_is_public === 1
+function buildMap(list){
+  const m={};
+  list.forEach(ps=>{
+    m[ps.id]={
+      title:ps.title._content,
+      photos:+ps.count_photos,
+      videos:+ps.count_videos,
+      primary:ps.primary,
+      farm:ps.farm,
+      server:ps.server,
+      secret:ps.secret,
+      isPublic:isPublicAlbum(ps)
     };
   });
   return m;
 }
 
 // ---------- ENRICH ----------
-function enrich(col, map, mode = "all") {
-  col.id = realId(col.id);
+function enrich(col,map,mode){
+  col.id=realId(col.id);
 
-  if (col.set) {
-    col.set = col.set.map(s => {
-      const m = map[s.id];
-      if (!m) return null;
-
-      if (mode === "public" && !m.isPublic) return null;
+  if(col.set){
+    col.set=col.set.map(s=>{
+      const m=map[s.id];
+      if(!m) return null;
+      if(mode==="public" && !m.isPublic) return null;
 
       return {
-        id: s.id,
-        title: m.title,
-        photos: m.photos,
-        videos: m.videos,
-        url: albumUrl(s.id),
-        thumb: thumbUrl(m)
+        id:s.id,
+        title:m.title,
+        photos:m.photos,
+        videos:m.videos,
+        url:albumUrl(s.id),
+        thumb:thumb(m)
       };
     }).filter(Boolean);
   }
 
-  if (col.collection) {
-    col.collection = col.collection
-      .map(c => enrich(c, map, mode))
-      .filter(Boolean);
+  if(col.collection){
+    col.collection=col.collection.map(c=>enrich(c,map,mode)).filter(Boolean);
   }
 
   return col;
 }
 
 // ---------- PRUNE ----------
-function prune(col) {
-  if (col.collection) {
-    col.collection = col.collection.map(prune).filter(Boolean);
+function prune(col){
+  if(col.collection){
+    col.collection=col.collection.map(prune).filter(Boolean);
   }
-
-  const hasAlbums = col.set && col.set.length;
-  const hasChildren = col.collection && col.collection.length;
-
-  if (!hasAlbums && !hasChildren) return null;
-  return col;
+  const hasAlbums=col.set && col.set.length;
+  const hasChildren=col.collection && col.collection.length;
+  return (hasAlbums||hasChildren)?col:null;
 }
 
 // ---------- STATS ----------
-function stats(col) {
-  let s = { collections: 0, albums: 0, photos: 0, videos: 0 };
+function stats(col){
+  let s={collections:0,albums:0,photos:0,videos:0};
 
-  if (col.set) {
-    s.albums += col.set.length;
-    col.set.forEach(x => {
-      s.photos += x.photos;
-      s.videos += x.videos;
+  if(col.set){
+    s.albums+=col.set.length;
+    col.set.forEach(x=>{
+      s.photos+=x.photos;
+      s.videos+=x.videos;
     });
   }
 
-  if (col.collection) {
-    s.collections += col.collection.length;
-    col.collection.forEach(c => {
-      const sub = stats(c);
-      s.collections += sub.collections;
-      s.albums += sub.albums;
-      s.photos += sub.photos;
-      s.videos += sub.videos;
+  if(col.collection){
+    s.collections+=col.collection.length;
+    col.collection.forEach(c=>{
+      const sub=stats(c);
+      s.collections+=sub.collections;
+      s.albums+=sub.albums;
+      s.photos+=sub.photos;
+      s.videos+=sub.videos;
     });
   }
 
-  col._stats = s;
+  col._stats=s;
   return s;
 }
 
-function countCols(cols) {
-  let n = 0;
+function countCols(cols){
+  let n=0;
   (function walk(a){
     a.forEach(c=>{
       n++;
@@ -230,8 +223,9 @@ function countCols(cols) {
 }
 
 // ---------- HTML ----------
-function buildHTML(collections, user, totals, label) {
-const name = user.realname || user.username;
+function buildHTML(collections,user,totals,label){
+
+const name=user.realname||user.username;
 
 function render(col){
 return `
@@ -252,8 +246,7 @@ return `
   <div class="children">
     <div class="albums">
       ${(col.set||[]).map(s=>`
-        <a class="album-card"
-           href="${s.url}" target="_blank"
+        <a class="album-card" href="${s.url}" target="_blank"
            data-title="${s.title.toLowerCase()}"
            data-photos="${s.photos}"
            data-videos="${s.videos}">
@@ -280,9 +273,9 @@ return `<!DOCTYPE html>
 
 <style>
 body{font-family:Arial;background:#f5f5f5;margin:0}
-.header{position:sticky;top:0;background:#fff;padding:10px;display:flex;gap:10px;align-items:center;border-bottom:1px solid #ddd;z-index:1000}
+.header{position:sticky;top:0;background:#fff;padding:10px;display:flex;gap:10px;align-items:center;border-bottom:1px solid #ddd}
 .header img{width:48px;height:48px;border-radius:50%}
-.banner{background:#222;color:#fff;padding:6px;text-align:center}
+.banner{background:#222;color:#fff;text-align:center;padding:5px}
 
 .controls{display:flex;gap:10px;flex-wrap:wrap;padding:10px;background:#fff;margin:10px;border-radius:8px}
 
@@ -296,7 +289,7 @@ body.grid .albums{display:grid;grid-template-columns:repeat(auto-fill,minmax(180
 
 /* LIST */
 body.list .albums{display:flex;flex-direction:column;gap:6px}
-body.list .album-card{display:flex;align-items:center}
+body.list .album-card{display:flex}
 body.list .album-card img{width:80px;height:80px;margin-right:10px}
 
 /* CARD */
@@ -348,10 +341,10 @@ function setView(v){
   localStorage.setItem("view",v);
 }
 
-function loadView(){
+(function(){
   const v=localStorage.getItem("view")||"grid";
   setView(v);
-}
+})();
 
 function filter(){
   const q=document.getElementById("search").value.toLowerCase();
@@ -374,8 +367,6 @@ function filter(){
 document.getElementById("search").oninput=filter;
 document.getElementById("minPhotos").oninput=filter;
 document.getElementById("hasVideos").onchange=filter;
-
-loadView();
 </script>
 
 </body>
@@ -383,30 +374,30 @@ loadView();
 }
 
 // ---------- MAIN ----------
-(async () => {
-  const [collections, photosets, user, totalPhotos] = await Promise.all([
+(async()=>{
+  const [collections,photosets,user,total] = await Promise.all([
     getCollections(),
     getPhotosets(),
-    getUserInfo(),
+    getUser(),
     getTotalPhotos()
   ]);
 
-  const map = buildMap(photosets);
+  const map=buildMap(photosets);
 
-  const allTree = collections.map(c => enrich(JSON.parse(JSON.stringify(c)), map, "all")).map(prune).filter(Boolean);
-  const publicTree = collections.map(c => enrich(JSON.parse(JSON.stringify(c)), map, "public")).map(prune).filter(Boolean);
+  const allTree=collections.map(c=>enrich(JSON.parse(JSON.stringify(c)),map,"all")).map(prune).filter(Boolean);
+  const publicTree=collections.map(c=>enrich(JSON.parse(JSON.stringify(c)),map,"public")).map(prune).filter(Boolean);
 
   allTree.forEach(stats);
   publicTree.forEach(stats);
 
-  const totals = {
-    albums: photosets.length,
-    collections: countCols(allTree),
-    photos: totalPhotos
+  const totals={
+    albums:photosets.length,
+    collections:countCols(allTree),
+    photos:total
   };
 
-  fs.writeFileSync("private.html", buildHTML(allTree, user, totals, "Private (All Content)"));
-  fs.writeFileSync("public.html", buildHTML(publicTree, user, totals, "Public Only"));
+  fs.writeFileSync("private.html", buildHTML(allTree,user,totals,"Private"));
+  fs.writeFileSync("public.html", buildHTML(publicTree,user,totals,"Public"));
 
-  console.log("✅ Done: public.html + private.html");
+  console.log("✅ DONE (final version)");
 })();
