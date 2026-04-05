@@ -3,8 +3,9 @@ const OAuth = require("oauth-1.0a");
 const crypto = require("crypto");
 const readline = require("readline");
 
-const API_KEY = "YOUR_API_KEY";
-const API_SECRET = "YOUR_API_SECRET";
+var config_consts = require("../secrets/config.js");
+const API_KEY = config_consts.API_KEY;
+const USER_ID = config_consts.USER_ID;
 
 const REQUEST_TOKEN_URL = "https://www.flickr.com/services/oauth/request_token";
 const AUTHORIZE_URL = "https://www.flickr.com/services/oauth/authorize";
