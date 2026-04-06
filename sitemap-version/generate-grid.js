@@ -48,6 +48,20 @@ async function getCollections(){
   return d.collections.collection;
 }
 
+function countCollections(collections) {
+  let count = 0;
+
+  function walk(col) {
+    count++;
+    if (col.collection) {
+      col.collection.forEach(walk);
+    }
+  }
+
+  collections.forEach(walk);
+  return count;
+}
+
 async function getAllPhotosets(){
   const c = readCache("photosets_list");
   if (c) return c;
@@ -201,9 +215,9 @@ return `
       <a href="${collectionUrl(col.id,user)}" target="_blank">${col.title}</a>
       <div class="meta">
         ${col._stats.collections} collections •
-        ${col._stats.albums} albums •
-        ${col._stats.photos} photos
-        ${col._stats.videos?`• ${col._stats.videos} videos`:""}
+        ${col._stats.albums.toLocaleString()} albums •
+        ${col._stats.photos.toLocaleString()} photos
+        ${col._stats.videos?`• ${col._stats.videos.toLocaleString()} videos`:""}
       </div>
     </span>
     <span class="toggle">[+]</span>
@@ -224,7 +238,7 @@ return `
           <div class="album-info">
             <div class="album-title">${s.title}</div>
             <div class="meta">
-              ${s.photos} photos ${s.videos?`• ${s.videos} videos`:""}
+              ${s.photos.toLocaleString()} photos ${s.videos?`• ${s.videos.toLocaleString()} videos`:""}
             </div>
           </div>
         </a>
@@ -309,7 +323,7 @@ body.list .album-card img{
 <div class="header">
   <img src="${avatarUrl(user)}">
   <div>
-    <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank">${name}</a>
+    <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank">${name}</a>'s <a href="https://www.flickr.com/">Flickr</a> sitemap
     <div class="meta">
       ${totals.collections} collections •
       ${totals.albums} albums •
