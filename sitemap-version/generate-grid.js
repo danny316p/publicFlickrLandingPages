@@ -214,9 +214,9 @@ return `
     <span>
       <a href="${collectionUrl(col.id,user)}" target="_blank">${col.title}</a>
       <div class="meta">
-        ${col._stats.collections} collections •
-        ${col._stats.albums.toLocaleString()} albums •
-        ${col._stats.photos.toLocaleString()} photos
+        ${col._stats.collections?`${col._stats.collections.toLocaleString()} collections •`:""}
+        ${col._stats.albums?` ${col._stats.albums.toLocaleString()} albums `:""}
+        ${col._stats.photos?`• ${col._stats.photos.toLocaleString()} photos `:""}
         ${col._stats.videos?`• ${col._stats.videos.toLocaleString()} videos`:""}
       </div>
     </span>
@@ -238,7 +238,8 @@ return `
           <div class="album-info">
             <div class="album-title">${s.title}</div>
             <div class="meta">
-              ${s.photos.toLocaleString()} photos ${s.videos?`• ${s.videos.toLocaleString()} videos`:""}
+              ${s.photos?`${s.photos.toLocaleString()} photos `:""}
+              ${s.videos?`• ${s.videos.toLocaleString()} videos`:""}
             </div>
           </div>
         </a>
@@ -321,7 +322,7 @@ body.list .album-card img{
 <body class="grid">
 
 <div class="header">
-  <img src="${avatarUrl(user)}">
+  <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank"><img src="${avatarUrl(user)}" alt="avatar"></a>
   <div>
     <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank">${name}</a>'s <a href="https://www.flickr.com/">Flickr</a> sitemap
     <div class="meta">
