@@ -348,9 +348,28 @@ body.list .album-card img{
 ${collections.map(render).join("")}
 
 <script>
-function toggle(el){el.parentElement.classList.toggle("open")}
-function expandAll(){document.querySelectorAll(".collection").forEach(c=>c.classList.add("open"))}
-function collapseAll(){document.querySelectorAll(".collection").forEach(c=>c.classList.remove("open"))}
+function toggle(header){
+  const col = header.parentElement;
+  col.classList.toggle("open");
+  const indicator = header.querySelector("span:last-child");
+  if(indicator) indicator.textContent = col.classList.contains("open") ? "[-]" : "[+]";
+}
+
+function expandAll(){
+  document.querySelectorAll(".collection").forEach(c=>{
+    c.classList.add("open");
+    const i=c.querySelector(".collection-header span:last-child");
+    if(i) i.textContent="[-]";
+  });
+}
+
+function collapseAll(){
+  document.querySelectorAll(".collection").forEach(c=>{
+    c.classList.remove("open");
+    const i=c.querySelector(".collection-header span:last-child");
+    if(i) i.textContent="[+]";
+  });
+}
 
 // ---------- View toggle ----------
 function setView(v){
