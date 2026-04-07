@@ -65,7 +65,7 @@ function countCollections(collections) {
     return count;
 }
 
-async function getAllPhotosets() {
+async function getPhotosets() {
     const c = readCache("photosets_list");
     if (c) return c;
     let page=1,pages=1,all=[];
@@ -111,27 +111,23 @@ async function getTotalPhotoCount() {
     return total;
 }
 
-// ---------- Helpers ----------
+// ---------- HELPERS ----------
 const realId = id => id.split("-").pop();
 const baseUser = u => u.pathAlias || u.nsid;
+const albumUrl = id => `https://www.flickr.com/photos/${USER_ID}/albums/${id}`;
+const collectionUrl = (id,u)=> `https://www.flickr.com/photos/${baseUser(u)}/collections/${realId(id)}`;
 
-const collectionUrl = (id,u)=>
-                      `https://www.flickr.com/photos/${baseUser(u)}/collections/${realId(id)}`;
-
-                          const albumUrl = id =>
-                                           `https://www.flickr.com/photos/${USER_ID}/albums/${id}`;
-
-                                           const avatarUrl = u =>
-                                                   u.iconserver>0
-                                                   ? `https://farm${u.iconfarm}.staticflickr.com/${u.iconserver}/buddyicons/${u.nsid}.jpg`
-                                                   : "https://www.flickr.com/images/buddyicon.gif";
+const avatarUrl = u =>
+    u.iconserver>0
+    ? `https://farm${u.iconfarm}.staticflickr.com/${u.iconserver}/buddyicons/${u.nsid}.jpg`
+    : "https://www.flickr.com/images/buddyicon.gif";
 
 const thumbUrl = ps =>
                  ps.primary && ps.secret && ps.server && ps.farm
                  ? `https://farm${ps.farm}.staticflickr.com/${ps.server}/${ps.primary}_${ps.secret}_q.jpg`
                  : null;
 
-// ---------- Map ----------
+// ---------- MAP ----------
 function buildMap(list) {
     const m= {};
     list.forEach(ps=> {
@@ -155,7 +151,7 @@ photos:
     return m;
 }
 
-// ---------- Enrich ----------
+// ---------- ENRICH ----------
 function enrich(col,map) {
     col.id = realId(col.id);
 
@@ -234,12 +230,12 @@ function buildHTML(collections,user,totals) {
                <div class="collection">
                               <div class="collection-header" onclick="toggle(this)">
                                              <span>
-                                             <a href="${collectionUrl(col.id,user)}" target="_blank">$ {col.title}</a>
+                                             <a href="${collectionUrl(col.id,user)}" target="_blank">${col.title}</a>
         <div class="meta">
-                       $ {col._stats.collections?`${col._stats.collections.toLocaleString()} collections •`:""}
-        $ {col._stats.albums?` ${col._stats.albums.toLocaleString()} albums `:""}
-        $ {col._stats.photos?`• ${col._stats.photos.toLocaleString()} photos `:""}
-        $ {col._stats.videos?`• ${col._stats.videos.toLocaleString()} videos`:""}
+                       ${col._stats.collections?`${col._stats.collections.toLocaleString()} collections •`:""}
+        ${col._stats.albums?` ${col._stats.albums.toLocaleString()} albums `:""}
+        ${col._stats.photos?`• ${col._stats.photos.toLocaleString()} photos `:""}
+        ${col._stats.videos?`• ${col._stats.videos.toLocaleString()} videos`:""}
         </div>
         </span>
         <span class="toggle">[+]</span>
@@ -248,7 +244,7 @@ function buildHTML(collections,user,totals) {
                         <div class="children">
 
                                        <div class="albums">
-                                                      $ {(col.set||[]).map(s=>`
+                                                      ${(col.set||[]).map(s=>`
                                                               <a class="album-card"
                                                                       href="${s.url}" target="_blank"
                                                                               data-title="${s.title.toLowerCase()}"
@@ -269,7 +265,7 @@ function buildHTML(collections,user,totals) {
                 }
         </div>
 
-        $ {(col.collection||[]).map(render).join("")}
+        ${(col.collection||[]).map(render).join("")}
 
         </div>
         </div>`;
@@ -279,7 +275,7 @@ function buildHTML(collections,user,totals) {
            <html>
            <head>
            <meta name="viewport" content="width=device-width,initial-scale=1">
-                                         <title>$ {name} – Flickr Sitemap</title>
+                                         <title>${name} – Flickr Sitemap</title>
 
                                          <style>
                                          body{font-family:Arial; background:#f5f5f5; margin:0}
@@ -392,11 +388,11 @@ object-fit:
                     <div class="header">
                                    <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank"><img src="${avatarUrl(user)}" alt="avatar"></a>
                                            <div>
-                                           <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank">$ {name}</a>'s <a href="https://www.flickr.com/">Flickr</a> sitemap
+                                           <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank">${name}</a>'s <a href="https://www.flickr.com/">Flickr</a> sitemap
     <div class="meta">
-                   $ {totals.collections} collections •
-    $ {totals.albums} albums •
-    $ {totals.photos.toLocaleString()} photos
+                   ${totals.collections} collections •
+    ${totals.albums} albums •
+    ${totals.photos.toLocaleString()} photos
     </div>
     </div>
     </div>
@@ -413,7 +409,7 @@ object-fit:
                                                                        <button onclick="collapseAll()">Collapse all</button>
                                                                                </div>
 
-                                                                               $ {collections.map(render).join("")}
+                                                                               ${collections.map(render).join("")}
 
     <script>
     function toggle(header) {
@@ -445,7 +441,7 @@ object-fit:
         document.body.classList.add(v);
         localStorage.setItem("view",v);
 
-        const p=new URLSearchParams(location.search);
+        const p=new URLSearchParams(window.location.search);
         p.set("view",v);
         history.replaceState(null,"","?"+p.toString());
     }
@@ -456,13 +452,17 @@ object-fit:
         const min = +document.getElementById("minPhotos").value || 0;
         const vid = document.getElementById("hasVideos").checked;
 
+        const p=new URLSearchParams(window.location.search);
+        p.set("q",q);
+        p.set("minPhotos",min);
+        vid?p.set("hasVideos","1"):p.delete("hasVideos");
+        history.replaceState({}, '', location.pathname+'?'+p);
+
         // --- Filter albums ---
         document.querySelectorAll(".album-card").forEach(el=> {
-            const t = el.dataset.title;
-            const p = +el.dataset.photos;
-            const v = +el.dataset.videos;
-
-            const show = t.includes(q) && p >= min && (!vid || v > 0);
+            const show = el.dataset.title.includes(q)
+                         && (+el.dataset.photos)>=min
+                         && (!vid || +el.dataset.videos>0);
             el.classList.toggle("hidden", !show);
         });
 
@@ -500,7 +500,7 @@ object-fit:
 (async()=> {
     const [collections,photosets,user,totalPhotos]=await Promise.all([
                 getCollections(),
-                getAllPhotosets(),
+                getPhotosets(),
                 getUserInfo(),
                 getTotalPhotoCount()
             ]);
