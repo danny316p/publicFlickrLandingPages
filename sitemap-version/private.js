@@ -237,7 +237,6 @@ function countCols(cols) {
 
 // ---------- HTML ----------
 function buildHTML(collections,user,totals) {
-
     const name=user.realname||user.username;
 
     function render(col) {
@@ -247,10 +246,10 @@ function buildHTML(collections,user,totals) {
                                              <span>
                                              <a href="${collectionUrl(col.id,user)}" target="_blank">$ {col.title}</a>
         <div class="meta">
-                       $ {col._stats.collections} collections •
-        $ {col._stats.albums} albums •
-        $ {col._stats.photos} photos
-        $ {col._stats.videos?`• ${col._stats.videos} videos`:""}
+                       $ {col._stats.collections?`${col._stats.collections.toLocaleString()} collections •`:""}
+        $ {col._stats.albums?` ${col._stats.albums.toLocaleString()} albums `:""}
+        $ {col._stats.photos?`• ${col._stats.photos.toLocaleString()} photos `:""}
+        $ {col._stats.videos?`• ${col._stats.videos.toLocaleString()} videos`:""}
         </div>
         </span>
         <span>[+]</span>
@@ -335,8 +334,8 @@ function buildHTML(collections,user,totals) {
                                        <label><input type="checkbox" id="hasVideos"> videos</label>
                                                <button onclick="setView('grid')">Grid</button>
                                                        <button onclick="setView('list')">List</button>
-                                                               <button onclick="expandAll()">Expand All</button>
-                                                                       <button onclick="collapseAll()">Collapse All</button>
+                                                               <button onclick="expandAll()">Expand all</button>
+                                                                       <button onclick="collapseAll()">Collapse all</button>
                                                                                </div>
 
                                                                                $ {collections.map(render).join("")}
@@ -365,6 +364,7 @@ function buildHTML(collections,user,totals) {
         });
     }
 
+// ---------- View toggle ----------
     function setView(v) {
         document.body.classList.remove("grid","list");
         document.body.classList.add(v);
@@ -375,6 +375,7 @@ function buildHTML(collections,user,totals) {
         history.replaceState({}, '', location.pathname+'?'+p);
     }
 
+// ---------- Filter ----------
     function filter() {
         const q=document.getElementById("search").value.toLowerCase();
         const min=+document.getElementById("minPhotos").value||0;
@@ -447,6 +448,5 @@ photos:
     };
 
     fs.writeFileSync("sitemap.html", buildHTML(tree,user,totals));
-
     console.log("✅ DONE: sitemap.html generated");
 })();

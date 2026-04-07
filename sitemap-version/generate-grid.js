@@ -187,7 +187,7 @@ thumb:
     return col;
 }
 
-// ---------- Stats ----------
+// ---------- STATS ----------
 function stats(col) {
     let s= {collections:0,albums:0,photos:0,videos:0};
 
@@ -450,12 +450,6 @@ object-fit:
         history.replaceState(null,"","?"+p.toString());
     }
 
-    function loadView() {
-        const p=new URLSearchParams(location.search);
-        const v=p.get("view")||localStorage.getItem("view")||"grid";
-        setView(v);
-    }
-
 // ---------- Filter ----------
     function filter() {
         const q = document.getElementById("search").value.toLowerCase();
@@ -488,14 +482,21 @@ object-fit:
     document.getElementById("minPhotos").oninput=filter;
     document.getElementById("hasVideos").onchange=filter;
 
-    loadView();
+    (function() {
+        const p=new URLSearchParams(window.location.search);
+        setView(p.get("view")||localStorage.getItem("view")||"grid");
+        document.getElementById("search").value=p.get("q")||"";
+        document.getElementById("minPhotos").value=p.get("minPhotos")||"";
+        document.getElementById("hasVideos").checked=p.get("hasVideos")==="1";
+        filter();
+    })();
     </script>
 
     </body>
     </html>`;
 }
 
-// ---------- Main ----------
+// ---------- MAIN ----------
 (async()=> {
     const [collections,photosets,user,totalPhotos]=await Promise.all([
                 getCollections(),
