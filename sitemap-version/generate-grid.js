@@ -309,7 +309,7 @@ flex-wrap:
         wrap;
         padding:10px;
 background:
-#fff; 
+#fff;
         margin:10px;
         border-radius:8px;
     }
@@ -317,7 +317,7 @@ background:
     .collection{margin:10px}
     .collection-header{
 background:
-#fff; 
+#fff;
         padding:10px;
         border-radius:8px;
 cursor:
@@ -364,7 +364,7 @@ object-fit:
     /* SHARED */
     .album-card{
 background:
-#fff; 
+#fff;
         border-radius:8px;
 overflow:
         hidden;
