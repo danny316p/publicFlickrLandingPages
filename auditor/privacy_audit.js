@@ -85,16 +85,26 @@ async function getPhotosInSet(setId){
   const c = readCache(key);
   if (c) return c;
 
-  let page=1,pages=1,all=[];
-  while(page<=pages){
+  let page = 1;
+  let pages = 1;
+  let all = [];
+
+  while (page <= pages){
     const d = await flickrCall("flickr.photosets.getPhotos",{
-      photoset_id:setId,
+      photoset_id: setId,
       page,
-      per_page:500,
-      extras:"privacy"
+      per_page: 500,
+      extras: "privacy"
     });
-    pages=d.photoset.pages;
-    all.push(...d.photoset.photo);
+
+    // 🚨 Handle API errors properly
+    if (!d || d.stat !== "ok" || !d.photoset) {
+      console.warn(`⚠️ Skipping photoset ${setId}:`, d?.message || "Unknown error");
+      return [];
+    }
+
+    pages = d.photoset.pages || 1;
+    all.push(...(d.photoset.photo || []));
     page++;
   }
 
