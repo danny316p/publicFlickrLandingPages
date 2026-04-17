@@ -50,8 +50,15 @@ async function flickrCall(method, params={}){
   const headers = oauth.toHeader(oauth.authorize(req, token));
   const full = new URL(url);
   Object.entries(req.data).forEach(([k,v])=>full.searchParams.set(k,v));
+
   const res = await fetch(full,{headers});
-  return res.json();
+  const data = await res.json();
+
+  if (data.stat !== "ok") {
+    console.warn(`⚠️ Flickr API error (${method}):`, data.message);
+  }
+
+  return data;
 }
 
 // ---------- FETCH ----------
