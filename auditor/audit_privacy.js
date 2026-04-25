@@ -6,6 +6,33 @@ const fetch = global.fetch || require("node-fetch");
 const OAuth = require("oauth-1.0a");
 const crypto = require("crypto");
 
+const MAX_CONCURRENT = 5;      // safe level
+const REQUEST_DELAY = 200;     // ms between batches
+
+let active = 0;
+const queue = [];
+
+function sleep(ms){
+  return new Promise(r => setTimeout(r, ms));
+}
+
+async function enqueue(task){
+  if (active >= MAX_CONCURRENT){
+    await new Promise(resolve => queue.push(resolve));
+  }
+
+  active++;
+
+  try {
+    const result = await task();
+    return result;
+  } finally {
+    active--;
+    if (queue.length) queue.shift()();
+    await sleep(REQUEST_DELAY);
+  }
+}
+
 // ---------- CONFIG ----------
 var config_consts = require("../secrets/config.js");
 const API_KEY = config_consts.API_KEY;
@@ -64,21 +91,47 @@ const oauth = OAuth({
 const token = { key: OAUTH_TOKEN, secret: OAUTH_TOKEN_SECRET };
 
 // ---------- API ----------
-async function flickrCall(method, params={}){
-  const url = "https://www.flickr.com/services/rest/";
-  const req = { url, method:"GET", data:{ method, format:"json", nojsoncallback:"1", ...params } };
-  const headers = oauth.toHeader(oauth.authorize(req, token));
-  const full = new URL(url);
-  Object.entries(req.data).forEach(([k,v])=>full.searchParams.set(k,v));
+async function flickrCall(method, params={}, retries=3){
+  return enqueue(async () => {
 
-  const res = await fetch(full,{headers});
-  const data = await res.json();
+    const url = "https://www.flickr.com/services/rest/";
+    const req = { url, method:"GET", data:{ method, format:"json", nojsoncallback:"1", ...params } };
+    const headers = oauth.toHeader(oauth.authorize(req, token));
+    const full = new URL(url);
+    Object.entries(req.data).forEach(([k,v])=>full.searchParams.set(k,v));
 
-  if (data.stat !== "ok") {
-    console.warn(`⚠️ Flickr API error (${method}):`, data.message);
-  }
+    const res = await fetch(full, { headers });
 
-  return data;
+    // 🚨 Handle rate limit
+    if (res.status === 429){
+      if (retries > 0){
+        console.warn(`⏳ 429 hit, retrying ${method}...`);
+        await sleep(1000 * (4 - retries)); // exponential backoff
+        return flickrCall(method, params, retries - 1);
+      }
+      throw new Error("Rate limit exceeded repeatedly");
+    }
+
+    const text = await res.text();
+
+    // 🚨 Flickr sometimes returns HTML on failure
+    if (text.startsWith("<!DOCTYPE")){
+      console.warn("⚠️ HTML response (likely rate limit)");
+      if (retries > 0){
+        await sleep(1500);
+        return flickrCall(method, params, retries - 1);
+      }
+      return {};
+    }
+
+    const data = JSON.parse(text);
+
+    if (data.stat !== "ok"){
+      console.warn(`⚠️ Flickr API error (${method}):`, data.message);
+    }
+
+    return data;
+  });
 }
 
 // ---------- FETCH ----------
