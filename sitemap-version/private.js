@@ -68,7 +68,7 @@ async function getCollections() {
 
 async function getPhotosets() {
     const c = readCache("photosets");
-    if(c) return c;
+    if (c) return c;
     let page=1,pages=1,all=[];
     while(page<=pages) {
         const d = await flickrCall("flickr.photosets.getList", {user_id:USER_ID,page,per_page:500});
@@ -124,11 +124,10 @@ function avatarUrl(user) {
 return `https://farm${user.iconfarm}.staticflickr.com/${user.iconserver}/buddyicons/${user.nsid}.jpg`;
 }
 
-function thumb(ps) {
-    return ps.primary && ps.secret
-           ? `https://farm${ps.farm}.staticflickr.com/${ps.server}/${ps.primary}_${ps.secret}_q.jpg`
-           : null;
-}
+const thumbUrl = ps =>
+                 ps.primary && ps.secret && ps.server && ps.farm
+                 ? `https://farm${ps.farm}.staticflickr.com/${ps.server}/${ps.primary}_${ps.secret}_q.jpg`
+                 : null;
 
 // ---------- MAP ----------
 function buildMap(list) {
@@ -174,7 +173,7 @@ videos:
 url:
                 albumUrl(s.id),
 thumb:
-                thumb(m)
+                thumbUrl(m)
             };
         }).filter(Boolean);
     }
@@ -251,25 +250,22 @@ function buildHTML(collections,user,totals) {
         ${col._stats.videos?`• ${col._stats.videos.toLocaleString()} videos`:""}
         </div>
         </span>
-        <span>[+]</span>
+        <span class="toggle">[+]</span>
         </div>
 
         <div class="children">
                        <div class="albums">
                                       ${(col.set||[]).map(s=>`
-                                              <a class="album-card" href="${s.url}" target="_blank"
-                                                       data-title="${s.title.toLowerCase()}"
-                                                               data-photos="${s.photos}"
-                                                                       data-videos="${s.videos}">
-                                                                               ${s.thumb?`<img src="${s.thumb}" loading="lazy" onerror="this.style.display='none'">`:""}
-                                                                               <div class="album-info">
-                                                                                       <div class="album-title">${s.title}</div>
-                                                                                               <div class="meta">
-                                                                                                       ${s.photos} photos ${s.videos?`• ${s.videos} videos`:""}
-                                                                                                       </div>
-                                                                                                       </div>
-                                                                                                       </a>
-                                                                                                       `).join("")
+                                              <a class="album-card" href="${s.url}" target="_blank" data-title="${s.title.toLowerCase()}" data-photos="${s.photos}" data-videos="${s.videos}">
+                                        ${s.thumb?`<img src="${s.thumb}" loading="lazy" onerror="this.style.display='none'">`:""}
+                                        <div class="album-info">
+                                        <div class="album-title">${s.title}</div>
+                                        <div class="meta">
+                                        ${s.photos?`${s.photos.toLocaleString()} photos `:""} ${s.videos?`• ${s.videos.toLocaleString()} videos`:""}
+                                        </div>
+                                        </div>
+                                        </a>
+                                        `).join("")
             }
         </div>
         ${(col.collection||[]).map(render).join("")}
@@ -285,40 +281,57 @@ function buildHTML(collections,user,totals) {
 
                                          <style>
                                          body{font-family:Arial; background:#f5f5f5; margin:0}
-                                         .header{position:sticky; top:0; background:#fff; padding:10px; display:flex; gap:10px; align-items:center; border-bottom:1px solid #ddd}
-                                         .header img{width:48px; height:48px; border-radius:50%}
+    .header{
+position:
+        sticky;
+        top:0;
+        background:#fff;
+        padding:10px;
+        display:flex;
+        gap:10px;
+        align-items:center;
+        border-bottom:1px
+        solid #ddd;
+        z-index:1000;
+    }
+    .header img{width:48px; height:48px; border-radius:50%}
 
-                                         .controls{display:flex; gap:10px; flex-wrap:wrap; padding:10px; background:#fff; margin:10px; border-radius:8px}
+    .controls{
+display:
+        flex;
+        gap:10px;
+flex-wrap:wrap; padding:10px; background:#fff; margin:10px; border-radius:8px}
 
-                                         .collection{margin:10px}
-                                         .collection-header{background:#fff; padding:10px; border-radius:8px; cursor:pointer; display:flex; justify-content:space-between}
-                                         .children{display:none; margin-left:10px}
-                                         .collection.open>.children{display:block}
+    .collection{margin:10px}
+    .collection-header{background:#fff; padding:10px; border-radius:8px; cursor:pointer; display:flex; justify-content:space-between}
+    .children{display:none; margin-left:10px}
+    .collection.open>.children{display:block}
 
-                                         /* GRID */
-                                         body.grid .albums{display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px}
+    /* GRID */
+    body.grid .albums{display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px}
 
-                                         /* LIST */
-                                         body.list .albums{display:flex; flex-direction:column; gap:6px}
-                                         body.list .album-card{display:flex}
-                                         body.list .album-card img{width:80px; height:80px; margin-right:10px}
+    /* LIST */
+    body.list .albums{display:flex; flex-direction:column; gap:6px}
+    body.list .album-card{display:flex; align-items: center}
+    body.list .album-card img{width:80px; height:80px; object-fit:cover; margin-right:10px}
 
-                                         /* CARD */
-                                         .album-card{background:#fff; border-radius:8px; overflow:hidden; text-decoration:none; color:black}
-                                         .album-card img{width:100%; height:140px; object-fit:cover}
-                                         .album-info{padding:8px}
-                                         .meta{font-size:.8em; color:#555}
+    /* CARD */
+    .album-card{background:#fff; border-radius:8px; overflow:hidden; text-decoration:none; color:black}
+    .album-card img{width:100%; height:140px; object-fit:cover}
+    .album-info{padding:8px}
+    .album-title{font-weight:bold}
+    .meta{font-size:.8em; color:#555}
 
-                                         .hidden{display:none!important}
-                                         </style>
+    .hidden{display:none!important}
+    </style>
     </head>
 
     <body class="grid">
 
                     <div class="header">
-                                   <img src="${avatarUrl(user)}">
-                                            <div>
-                                            <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank">${name}</a>
+                                   <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank"><img src="${avatarUrl(user)}" alt="avatar"></a>
+                                           <div>
+                                           <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank">${name}</a>'s <a href="https://www.flickr.com/">Flickr</a> sitemap
     <div class="meta">
                    ${totals.collections.toLocaleString()} collections •
     ${totals.albums.toLocaleString()} albums •
@@ -376,9 +389,9 @@ function buildHTML(collections,user,totals) {
 
 // ---------- Filter ----------
     function filter() {
-        const q=document.getElementById("search").value.toLowerCase();
-        const min=+document.getElementById("minPhotos").value||0;
-        const vid=document.getElementById("hasVideos").checked;
+        const q = document.getElementById("search").value.toLowerCase();
+        const min = +document.getElementById("minPhotos").value || 0;
+        const vid = document.getElementById("hasVideos").checked;
 
         const p=new URLSearchParams(window.location.search);
         p.set("q",q);

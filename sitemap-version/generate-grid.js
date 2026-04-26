@@ -31,7 +31,7 @@ function writeCache(key,data) {
     fs.writeFileSync(cachePath(key), JSON.stringify(data,null,2));
 }
 
-// ---------- Flickr ----------
+// ---------- API ----------
 async function flickrCall(method, params= {}) {
     const url = new URL(API);
     url.searchParams.set("method", method);
@@ -42,27 +42,13 @@ async function flickrCall(method, params= {}) {
     return (await fetch(url)).json();
 }
 
-// ---------- Data ----------
+// ---------- FETCH ----------
 async function getCollections() {
     const c = readCache("collections");
     if (c) return c;
     const d = await flickrCall("flickr.collections.getTree", {user_id:USER_ID});
     writeCache("collections", d.collections.collection);
     return d.collections.collection;
-}
-
-function countCollections(collections) {
-    let count = 0;
-
-    function walk(col) {
-        count++;
-        if (col.collection) {
-            col.collection.forEach(walk);
-        }
-    }
-
-    collections.forEach(walk);
-    return count;
 }
 
 async function getPhotosets() {
@@ -117,10 +103,11 @@ const baseUser = u => u.pathAlias || u.nsid;
 const albumUrl = id => `https://www.flickr.com/photos/${USER_ID}/albums/${id}`;
 const collectionUrl = (id,u)=> `https://www.flickr.com/photos/${baseUser(u)}/collections/${realId(id)}`;
 
-const avatarUrl = u =>
-    u.iconserver>0
-    ? `https://farm${u.iconfarm}.staticflickr.com/${u.iconserver}/buddyicons/${u.nsid}.jpg`
-    : "https://www.flickr.com/images/buddyicon.gif";
+function avatarUrl(user) {
+    if(!user.iconserver || parseInt(user.iconserver)===0)
+        return "https://www.flickr.com/images/buddyicon.gif";
+return `https://farm${user.iconfarm}.staticflickr.com/${user.iconserver}/buddyicons/${user.nsid}.jpg`;
+}
 
 const thumbUrl = ps =>
                  ps.primary && ps.secret && ps.server && ps.farm
@@ -239,34 +226,24 @@ function buildHTML(collections,user,totals) {
         </div>
         </span>
         <span class="toggle">[+]</span>
-                        </div>
-
-                        <div class="children">
-
-                                       <div class="albums">
-                                                      ${(col.set||[]).map(s=>`
-                                                              <a class="album-card"
-                                                                      href="${s.url}" target="_blank"
-                                                                              data-title="${s.title.toLowerCase()}"
-                                                                                      data-photos="${s.photos}"
-                                                                                              data-videos="${s.videos}">
-
-                                                                                                      ${s.thumb?`<img src="${s.thumb}" loading="lazy">`:""}
-
-                                                                                                      <div class="album-info">
-                                                                                                              <div class="album-title">${s.title}</div>
-                                                                                                                      <div class="meta">
-                                                                                                                              ${s.photos?`${s.photos.toLocaleString()} photos `:""}
-                                                                                                                              ${s.videos?`• ${s.videos.toLocaleString()} videos`:""}
-                                                                                                                              </div>
-                                                                                                                              </div>
-                                                                                                                              </a>
-                                                                                                                              `).join("")
-                }
         </div>
 
+        <div class="children">
+                       <div class="albums">
+                                      ${(col.set||[]).map(s=>`
+                                              <a class="album-card" href="${s.url}" target="_blank" data-title="${s.title.toLowerCase()}" data-photos="${s.photos}" data-videos="${s.videos}">
+                                        ${s.thumb?`<img src="${s.thumb}" loading="lazy">`:""}
+                                        <div class="album-info">
+                                        <div class="album-title">${s.title}</div>
+                                        <div class="meta">
+                                        ${s.photos?`${s.photos.toLocaleString()} photos `:""} ${s.videos?`• ${s.videos.toLocaleString()} videos`:""}
+                                        </div>
+                                        </div>
+                                        </a>
+                                        `).join("")
+                }
+        </div>
         ${(col.collection||[]).map(render).join("")}
-
         </div>
         </div>`;
     }
@@ -284,15 +261,13 @@ function buildHTML(collections,user,totals) {
 position:
         sticky;
         top:0;
-background:
-#fff;
-display:
-        flex;
-        gap:10px;
-align-items:
-        center;
+        background:#fff;
         padding:10px;
-        border-bottom:1px solid #ddd;
+        display:flex;
+        gap:10px;
+        align-items:center;
+        border-bottom:1px
+        solid #ddd;
         z-index:1000;
     }
     .header img{width:48px; height:48px; border-radius:50%}
@@ -301,80 +276,24 @@ align-items:
 display:
         flex;
         gap:10px;
-flex-wrap:
-        wrap;
-        padding:10px;
-background:
-#fff;
-        margin:10px;
-        border-radius:8px;
-    }
+flex-wrap:wrap; padding:10px; background:#fff; margin:10px; border-radius:8px}
 
     .collection{margin:10px}
-    .collection-header{
-background:
-#fff;
-        padding:10px;
-        border-radius:8px;
-cursor:
-        pointer;
-display:
-        flex;
-justify-content:
-        space-between;
-    }
+    .collection-header{background:#fff; padding:10px; border-radius:8px; cursor:pointer; display:flex; justify-content:space-between}
     .children{display:none; margin-left:10px}
     .collection.open>.children{display:block}
 
-    /* GRID VIEW */
-    body.grid .albums{
-display:
-        grid;
-grid-template-columns:
-        repeat(auto-fill,minmax(180px,1fr));
-        gap:10px;
-    }
+    /* GRID */
+    body.grid .albums{display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:10px}
 
-    /* LIST VIEW */
-    body.list .albums{
-display:
-        flex;
-flex-direction:
-        column;
-        gap:6px;
-    }
-    body.list .album-card{
-display:
-        flex;
-align-items:
-        center;
-    }
-    body.list .album-card img{
-        width:80px;
-        height:80px;
-object-fit:
-        cover;
-        margin-right:10px;
-    }
+    /* LIST */
+    body.list .albums{display:flex; flex-direction:column; gap:6px}
+    body.list .album-card{display:flex; align-items: center}
+    body.list .album-card img{width:80px; height:80px; object-fit:cover; margin-right:10px}
 
-    /* SHARED */
-    .album-card{
-background:
-#fff;
-        border-radius:8px;
-overflow:
-        hidden;
-text-decoration:
-        none;
-color:
-        black;
-    }
-    .album-card img{
-        width:100%;
-        height:140px;
-object-fit:
-        cover;
-    }
+    /* CARD */
+    .album-card{background:#fff; border-radius:8px; overflow:hidden; text-decoration:none; color:black}
+    .album-card img{width:100%; height:140px; object-fit:cover}
     .album-info{padding:8px}
     .album-title{font-weight:bold}
     .meta{font-size:.8em; color:#555}
@@ -390,8 +309,8 @@ object-fit:
                                            <div>
                                            <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank">${name}</a>'s <a href="https://www.flickr.com/">Flickr</a> sitemap
     <div class="meta">
-                   ${totals.collections} collections •
-    ${totals.albums} albums •
+                   ${totals.collections.toLocaleString()} collections •
+    ${totals.albums.toLocaleString()} albums •
     ${totals.photos.toLocaleString()} photos
     </div>
     </div>
