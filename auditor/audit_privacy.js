@@ -1,37 +1,10 @@
-// Flickr Privacy Audit Script (FULL VERSION WITH CSV SUMMARIES)
+// Flickr Privacy Audit – Single Collection Mode (Stable)
 
 const fs = require("fs");
 const path = require("path");
 const fetch = global.fetch || require("node-fetch");
 const OAuth = require("oauth-1.0a");
 const crypto = require("crypto");
-
-const MAX_CONCURRENT = 5;      // safe level
-const REQUEST_DELAY = 200;     // ms between batches
-
-let active = 0;
-const queue = [];
-
-function sleep(ms){
-  return new Promise(r => setTimeout(r, ms));
-}
-
-async function enqueue(task){
-  if (active >= MAX_CONCURRENT){
-    await new Promise(resolve => queue.push(resolve));
-  }
-
-  active++;
-
-  try {
-    const result = await task();
-    return result;
-  } finally {
-    active--;
-    if (queue.length) queue.shift()();
-    await sleep(REQUEST_DELAY);
-  }
-}
 
 // ---------- CONFIG ----------
 var config_consts = require("../secrets/config.js");
@@ -41,97 +14,89 @@ const USER_ID = config_consts.USER_ID;
 const OAUTH_TOKEN = config_consts.OAUTH_TOKEN;
 const OAUTH_TOKEN_SECRET = config_consts.OAUTH_TOKEN_SECRET;
 
-const INCLUDE_PHOTOS = true;
-
-// ---------- CACHE ----------
 const CACHE_DIR = path.join(__dirname, ".cache_privacy");
 if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR);
 
+// ---------- CSV ----------
+function esc(v){
+  if (!v) return "";
+  const s = String(v);
+  return s.includes(",") ? `"${s}"` : s;
+}
+function toCSV(rows){
+  return rows.map(r=>r.map(esc).join(",")).join("\n");
+}
+
+const csvRows = [["collection","album","photo_id","photo_url","privacy"]];
+const albumRows = [["collection","album","total","public","friends","family","friends_family","private","mixed"]];
+
+// ---------- CACHE ----------
 function cacheFile(k){ return path.join(CACHE_DIR, k+".json"); }
 function readCache(k){
-  if (fs.existsSync(cacheFile(k))) {
-    return JSON.parse(fs.readFileSync(cacheFile(k)));
-  }
+  if (fs.existsSync(cacheFile(k))) return JSON.parse(fs.readFileSync(cacheFile(k)));
   return null;
 }
 function writeCache(k,d){
   fs.writeFileSync(cacheFile(k), JSON.stringify(d,null,2));
 }
 
-// ---------- CSV ----------
-function escapeCSV(value){
-  if (value == null) return "";
-  const str = String(value);
-  if (str.includes(",") || str.includes('"') || str.includes("\n")) {
-    return `"${str.replace(/"/g, '""')}"`;
+// ---------- NETWORK ----------
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+async function safeFetch(url, options={}, retries=5){
+  for (let i=0;i<retries;i++){
+    try {
+      const res = await fetch(url, options);
+
+      if (res.status === 429){
+        console.warn("⏳ 429 hit, backing off...");
+        await sleep(1000 * (i+1));
+        continue;
+      }
+
+      return res;
+
+    } catch (err){
+      if (["ECONNRESET","ETIMEDOUT","EAI_AGAIN"].includes(err.code)){
+        console.warn("🔁 retry", err.code);
+        await sleep(500 * (i+1));
+        continue;
+      }
+      throw err;
+    }
   }
-  return str;
+  throw new Error("Failed fetch");
 }
-function toCSV(rows){
-  return rows.map(r => r.map(escapeCSV).join(",")).join("\n");
-}
-
-// ---------- GLOBAL CSV STORAGE ----------
-const csvRows = [
-  ["collection", "album", "photo_id", "photo_url", "privacy"]
-];
-
-const albumSummaryRows = [
-  ["collection_path","album","album_privacy","total_photos","public","friends","family","friends_family","private","is_mixed"]
-];
 
 // ---------- OAUTH ----------
 const oauth = OAuth({
-  consumer: { key: API_KEY, secret: API_SECRET },
-  signature_method: "HMAC-SHA1",
-  hash_function(base, key) {
-    return crypto.createHmac("sha1", key).update(base).digest("base64");
+  consumer:{key:API_KEY,secret:API_SECRET},
+  signature_method:"HMAC-SHA1",
+  hash_function(base,key){
+    return crypto.createHmac("sha1",key).update(base).digest("base64");
   }
 });
-const token = { key: OAUTH_TOKEN, secret: OAUTH_TOKEN_SECRET };
+const token={key:OAUTH_TOKEN,secret:OAUTH_TOKEN_SECRET};
 
 // ---------- API ----------
-async function flickrCall(method, params={}, retries=3){
-  return enqueue(async () => {
+async function flickrCall(method, params={}){
+  const url="https://www.flickr.com/services/rest/";
+  const req={url,method:"GET",data:{method,format:"json",nojsoncallback:"1",...params}};
+  const headers=oauth.toHeader(oauth.authorize(req,token));
 
-    const url = "https://www.flickr.com/services/rest/";
-    const req = { url, method:"GET", data:{ method, format:"json", nojsoncallback:"1", ...params } };
-    const headers = oauth.toHeader(oauth.authorize(req, token));
-    const full = new URL(url);
-    Object.entries(req.data).forEach(([k,v])=>full.searchParams.set(k,v));
+  const full=new URL(url);
+  Object.entries(req.data).forEach(([k,v])=>full.searchParams.set(k,v));
 
-    const res = await fetch(full, { headers });
+  const res = await safeFetch(full,{headers});
+  const text = await res.text();
 
-    // 🚨 Handle rate limit
-    if (res.status === 429){
-      if (retries > 0){
-        console.warn(`⏳ 429 hit, retrying ${method}...`);
-        await sleep(1000 * (4 - retries)); // exponential backoff
-        return flickrCall(method, params, retries - 1);
-      }
-      throw new Error("Rate limit exceeded repeatedly");
-    }
+  if (text.startsWith("<!DOCTYPE")) {
+    console.warn("⚠️ HTML response, retrying...");
+    await sleep(1000);
+    return flickrCall(method, params);
+  }
 
-    const text = await res.text();
-
-    // 🚨 Flickr sometimes returns HTML on failure
-    if (text.startsWith("<!DOCTYPE")){
-      console.warn("⚠️ HTML response (likely rate limit)");
-      if (retries > 0){
-        await sleep(1500);
-        return flickrCall(method, params, retries - 1);
-      }
-      return {};
-    }
-
-    const data = JSON.parse(text);
-
-    if (data.stat !== "ok"){
-      console.warn(`⚠️ Flickr API error (${method}):`, data.message);
-    }
-
-    return data;
-  });
+  return JSON.parse(text);
 }
 
 // ---------- FETCH ----------
@@ -151,154 +116,123 @@ async function getPhotosets(){
   return all;
 }
 
-// ---------- PHOTO HELPERS ----------
-async function getPhotoIdsInSet(setId){
+async function getPhotoIds(setId){
+  const key="ids_"+setId;
+  const c=readCache(key);
+  if(c) return c;
+
   let page=1,pages=1,all=[];
   while(page<=pages){
-    const d = await flickrCall("flickr.photosets.getPhotos",{
-      photoset_id:setId,
-      page,
-      per_page:500
-    });
-
-    if (!d.photoset) return [];
-
+    const d=await flickrCall("flickr.photosets.getPhotos",{photoset_id:setId,page,per_page:500});
+    if(!d.photoset) return [];
     pages=d.photoset.pages;
     all.push(...d.photoset.photo.map(p=>p.id));
     page++;
   }
+
+  writeCache(key,all);
   return all;
 }
 
-async function getPhotoVisibility(photoId){
-  const d = await flickrCall("flickr.photos.getInfo",{photo_id:photoId});
-  if (!d.photo) return null;
-  return d.photo.visibility;
+async function getVisibility(id){
+  const key="vis_"+id;
+  const c=readCache(key);
+  if(c) return c;
+
+  const d=await flickrCall("flickr.photos.getInfo",{photo_id:id});
+  if(!d.photo) return null;
+
+  const v=d.photo.visibility;
+  writeCache(key,v);
+  return v;
 }
 
-// ---------- PRIVACY LABEL ----------
-function getPrivacyLabel(vis){
-  if (vis.ispublic) return "public";
-  if (vis.isfriend && vis.isfamily) return "friends+family";
-  if (vis.isfriend) return "friends";
-  if (vis.isfamily) return "family";
+function label(v){
+  if(v.ispublic) return "public";
+  if(v.isfriend && v.isfamily) return "friends_family";
+  if(v.isfriend) return "friends";
+  if(v.isfamily) return "family";
   return "private";
 }
 
-// ---------- MAIN ----------
+// ---------- PROCESS ----------
 (async()=>{
-  const [collections, photosets] = await Promise.all([
-    getCollections(),
-    getPhotosets()
-  ]);
+  const collections = await getCollections();
+  const sets = await getPhotosets();
 
-  const setMap = {};
-  photosets.forEach(ps=>{
-    setMap[ps.id] = {
-      title: ps.title._content,
-      privacy: ps.privacy
-    };
-  });
+  const map={};
+  sets.forEach(s=>map[s.id]={title:s.title._content});
 
-  async function processCollection(col, path=[]){
-    const currentPath = [...path, col.title];
+  const report=[];
 
-    const result = {
-      title: col.title,
-      albums: [],
-      collections: []
-    };
+  for (const col of collections){
 
-    if (col.set){
-      for (const s of col.set){
-        const albumMeta = setMap[s.id];
-        if (!albumMeta) continue;
+    console.log(`\n📁 Processing collection: ${col.title}`);
 
-        const entry = {
-          title: albumMeta.title,
-          privacy: albumMeta.privacy
-        };
+    const colResult={title:col.title,albums:[]};
 
-        if (INCLUDE_PHOTOS){
-          const ids = await getPhotoIdsInSet(s.id);
+    if (!col.set) continue;
 
-          const breakdown = {
-            public: {count:0},
-            friends: {count:0},
-            family: {count:0},
-            friends_family: {count:0},
-            private: {count:0}
-          };
+    for (const s of col.set){
 
-          for (const id of ids){
-            const vis = await getPhotoVisibility(id);
-            if (!vis) continue;
+      const albumName = map[s.id]?.title || s.id;
+      console.log(`  📷 Album: ${albumName}`);
 
-            const label = getPrivacyLabel(vis);
-            const url = `https://www.flickr.com/photos/${USER_ID}/${id}`;
+      const ids = await getPhotoIds(s.id);
 
-            breakdown[label.replace("+","_")].count++;
+      const counts={
+        public:0,friends:0,family:0,friends_family:0,private:0
+      };
 
-            csvRows.push([
-              currentPath.join(" > "),
-              entry.title,
-              id,
-              url,
-              label
-            ]);
-          }
+      let i=0;
+      for (const id of ids){
+        i++;
 
-          const total =
-            breakdown.public.count +
-            breakdown.friends.count +
-            breakdown.family.count +
-            breakdown.friends_family.count +
-            breakdown.private.count;
+        const v = await getVisibility(id);
+        if(!v) continue;
 
-          const isMixed =
-            breakdown.public.count > 0 &&
-            breakdown.private.count > 0;
+        const p = label(v);
+        counts[p]++;
 
-          albumSummaryRows.push([
-            currentPath.join(" > "),
-            entry.title,
-            entry.privacy,
-            total,
-            breakdown.public.count,
-            breakdown.friends.count,
-            breakdown.family.count,
-            breakdown.friends_family.count,
-            breakdown.private.count,
-            isMixed
-          ]);
+        const url=`https://www.flickr.com/photos/${USER_ID}/${id}`;
 
-          entry.photoBreakdown = breakdown;
+        csvRows.push([col.title,albumName,id,url,p]);
+
+        if (i % 50 === 0){
+          console.log(`    ...${i}/${ids.length}`);
         }
-
-        result.albums.push(entry);
       }
+
+      const total = Object.values(counts).reduce((a,b)=>a+b,0);
+      const mixed = counts.public>0 && counts.private>0;
+
+      albumRows.push([
+        col.title,
+        albumName,
+        total,
+        counts.public,
+        counts.friends,
+        counts.family,
+        counts.friends_family,
+        counts.private,
+        mixed
+      ]);
+
+      colResult.albums.push({title:albumName,counts});
     }
 
-    if (col.collection){
-      for (const c of col.collection){
-        result.collections.push(await processCollection(c, currentPath));
-      }
-    }
+    report.push(colResult);
 
-    return result;
-  }
+    console.log("✅ Collection complete");
 
-  const report = [];
-  for (const c of collections){
-    report.push(await processCollection(c));
+    // pause between collections (VERY important)
+    await sleep(2000);
   }
 
   fs.writeFileSync("privacy_report.json", JSON.stringify(report,null,2));
   fs.writeFileSync("privacy_report.csv", toCSV(csvRows));
-  fs.writeFileSync("album_summary.csv", toCSV(albumSummaryRows));
+  fs.writeFileSync("album_summary.csv", toCSV(albumRows));
 
-  console.log("✅ DONE:");
-  console.log(" - privacy_report.json");
-  console.log(" - privacy_report.csv");
-  console.log(" - album_summary.csv");
+  console.log("\n🎉 DONE");
 })();
+
