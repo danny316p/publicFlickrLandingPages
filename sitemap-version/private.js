@@ -460,6 +460,5 @@ photos:
         total
     };
 
-    fs.writeFileSync("sitemap.html", buildHTML(tree,user,totals));
-    console.log("✅ DONE: sitemap.html generated");
+    fs.writeFileSync("sitemap-private.html", buildHTML(tree,user,totals));
 })();

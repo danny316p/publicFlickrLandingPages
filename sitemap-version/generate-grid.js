@@ -438,5 +438,4 @@ photos:
     };
 
     fs.writeFileSync("index.html", buildHTML(enriched,user,totals));
-    console.log("✅ done (grid/list toggle)");
 })();
