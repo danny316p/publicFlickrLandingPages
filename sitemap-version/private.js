@@ -1,10 +1,9 @@
-// Flickr Private Sitemap Generator (FULL FINAL)
-
 const fs = require("fs");
 const path = require("path");
 const fetch = require("node-fetch");
 const OAuth = require("oauth-1.0a");
 const crypto = require("crypto");
+const suffix = "private";
 
 // ---------- CONFIG ----------
 var config_consts = require("../secrets/config.js");
@@ -460,5 +459,5 @@ photos:
         total
     };
 
-    fs.writeFileSync("sitemap-private.html", buildHTML(tree,user,totals));
+    fs.writeFileSync("sitemap-" + suffix + ".html", buildHTML(tree,user,totals));
 })();
