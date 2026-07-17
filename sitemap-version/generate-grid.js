@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const fetch = require("node-fetch");
+const suffix = "public";
 
 // ---------- CONFIG ----------
 var config_consts = require("../secrets/config.js");
@@ -437,5 +438,5 @@ photos:
         totalPhotos
     };
 
-    fs.writeFileSync("index.html", buildHTML(enriched,user,totals));
+    fs.writeFileSync("sitemap-" + suffix + ".html", buildHTML(enriched,user,totals));
 })();
