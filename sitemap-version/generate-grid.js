@@ -233,7 +233,7 @@ function buildHTML(collections,user,totals) {
                        <div class="albums">
                                       ${(col.set||[]).map(s=>`
                                               <a class="album-card" href="${s.url}" target="_blank" data-title="${s.title.toLowerCase()}" data-photos="${s.photos}" data-videos="${s.videos}">
-                                        ${s.thumb?`<img src="${s.thumb}" loading="lazy">`:""}
+                                        ${s.thumb?`<img src="${s.thumb}" loading="lazy" onerror="this.style.display='none'">`:""}
                                         <div class="album-info">
                                         <div class="album-title">${s.title}</div>
                                         <div class="meta">
@@ -257,7 +257,6 @@ function buildHTML(collections,user,totals) {
 
                                          <style>
                                          body{font-family:Arial; background:#f5f5f5; margin:0}
-
     .header{
 position:
         sticky;
@@ -321,10 +320,8 @@ flex-wrap:wrap; padding:10px; background:#fff; margin:10px; border-radius:8px}
                    <input id="search" placeholder="Search">
                              <input id="minPhotos" type="number" placeholder="Min photos">
                                        <label><input type="checkbox" id="hasVideos"> videos</label>
-
                                                <button onclick="setView('grid')">Grid</button>
                                                        <button onclick="setView('list')">List</button>
-
                                                                <button onclick="expandAll()">Expand all</button>
                                                                        <button onclick="collapseAll()">Collapse all</button>
                                                                                </div>
