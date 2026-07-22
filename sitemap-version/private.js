@@ -407,8 +407,8 @@ flex-wrap:wrap; padding:10px; background:#fff; margin:10px; border-radius:8px}
         });
 
         document.querySelectorAll(".collection").forEach(col=> {
-            const visible = col.querySelectorAll(".album-card:not(.hidden)");
-            col.classList.toggle("open", visible.length>0);
+            const visibleAlbums = col.querySelectorAll(".album-card:not(.hidden)");
+            col.classList.toggle("open", visibleAlbums.length>0);
             const i=col.querySelector(".collection-header span:last-child");
             if(i) i.textContent = col.classList.contains("open")?"[-]":"[+]";
         });
