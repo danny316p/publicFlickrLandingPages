@@ -266,7 +266,7 @@ function buildHTML(collections, user, totals) {
         const levelClass = `collection-level-${Math.min(depth, 3)}`;
         
         return `
-            <div class="collection ${levelClass}">
+            <div class="collection ${levelClass}" data-collection-title="${col.title.toLowerCase()}">
                 <div class="collection-header" onclick="toggle(this)">
                     <span>
                         <a href="${collectionUrl(col.id, user)}" target="_blank">${col.title}</a>
@@ -283,8 +283,8 @@ function buildHTML(collections, user, totals) {
                 <div class="children">
                     <div class="albums">
                         ${(col.set || []).map(s => `
-                            <div class="album-card-wrapper">
-                                <a class="album-card" href="${s.url}" target="_blank" data-title="${s.title.toLowerCase()}" data-photos="${s.photos}" data-videos="${s.videos}">
+                            <div class="album-card-wrapper" data-album-title="${s.title.toLowerCase()}" data-photos="${s.photos}" data-videos="${s.videos}">
+                                <a class="album-card" href="${s.url}" target="_blank">
                                     ${s.thumb ? `<img src="${s.thumb}" loading="lazy" onerror="this.style.display='none'">` : `<div class="album-placeholder">📷</div>`}
                                     <div class="album-info">
                                         <div class="album-title">${s.title}</div>
@@ -1116,35 +1116,55 @@ function buildHTML(collections, user, totals) {
 
                 // ---------- Filter ----------
                 function filter() {
-                    const q = document.getElementById("search").value.toLowerCase();
-                    const min = +document.getElementById("minPhotos").value || 0;
+                    const q = document.getElementById("search").value.toLowerCase().trim();
+                    const min = parseInt(document.getElementById("minPhotos").value) || 0;
                     const vid = document.getElementById("hasVideos").checked;
 
+                    // Update URL params
                     const p = new URLSearchParams(window.location.search);
-                    p.set("q", q);
-                    p.set("minPhotos", min);
-                    vid ? p.set("hasVideos","1") : p.delete("hasVideos");
+                    if (q) p.set("q", q);
+                    else p.delete("q");
+                    if (min > 0) p.set("minPhotos", min);
+                    else p.delete("minPhotos");
+                    if (vid) p.set("hasVideos", "1");
+                    else p.delete("hasVideos");
                     history.replaceState({}, '', location.pathname + '?' + p);
 
                     let visibleCount = 0;
                     let totalCount = 0;
 
+                    // Filter album wrappers
                     document.querySelectorAll(".album-card-wrapper").forEach(wrapper => {
-                        const el = wrapper.querySelector(".album-card");
-                        const show = el.dataset.title.includes(q)
-                            && (+el.dataset.photos) >= min
-                            && (!vid || +el.dataset.videos > 0);
+                        const title = wrapper.dataset.albumTitle || "";
+                        const photos = parseInt(wrapper.dataset.photos) || 0;
+                        const videos = parseInt(wrapper.dataset.videos) || 0;
+                        
+                        const matchesSearch = !q || title.includes(q);
+                        const matchesMinPhotos = photos >= min;
+                        const matchesVideos = !vid || videos > 0;
+                        
+                        const show = matchesSearch && matchesMinPhotos && matchesVideos;
                         wrapper.classList.toggle("hidden", !show);
+                        
                         totalCount++;
                         if (show) visibleCount++;
                     });
 
+                    // Show/hide collections based on visible albums
                     document.querySelectorAll(".collection").forEach(col => {
                         const visibleAlbums = col.querySelectorAll(".album-card-wrapper:not(.hidden)");
                         const hasVisible = visibleAlbums.length > 0;
-                        col.classList.toggle("open", hasVisible);
-                        const i = col.querySelector(".collection-header .toggle");
-                        if(i) i.textContent = hasVisible ? "[-]" : "[+]";
+                        
+                        // Only auto-expand if there are visible albums
+                        if (hasVisible) {
+                            col.classList.add("open");
+                            const i = col.querySelector(".collection-header .toggle");
+                            if(i) i.textContent = "[-]";
+                        } else {
+                            col.classList.remove("open");
+                            const i = col.querySelector(".collection-header .toggle");
+                            if(i) i.textContent = "[+]";
+                        }
                     });
 
                     // Update filter results
@@ -1220,15 +1240,20 @@ function buildHTML(collections, user, totals) {
                     document.querySelectorAll(".collection").forEach(col => {
                         const title = col.querySelector(".collection-header a")?.textContent || "Untitled";
                         const albums = [];
-                        col.querySelectorAll(".album-card").forEach(card => {
-                            albums.push({
-                                title: card.querySelector(".album-title")?.textContent || "Untitled",
-                                photos: parseInt(card.dataset.photos) || 0,
-                                videos: parseInt(card.dataset.videos) || 0,
-                                url: card.href
-                            });
+                        col.querySelectorAll(".album-card-wrapper:not(.hidden)").forEach(wrapper => {
+                            const card = wrapper.querySelector(".album-card");
+                            if (card) {
+                                albums.push({
+                                    title: card.querySelector(".album-title")?.textContent || "Untitled",
+                                    photos: parseInt(wrapper.dataset.photos) || 0,
+                                    videos: parseInt(wrapper.dataset.videos) || 0,
+                                    url: card.href
+                                });
+                            }
                         });
-                        data.push({ title, albums });
+                        if (albums.length > 0) {
+                            data.push({ title, albums });
+                        }
                     });
                     return data;
                 }
@@ -1288,21 +1313,6 @@ function buildHTML(collections, user, totals) {
                     document.getElementById("minPhotos").value = p.get("minPhotos") || "";
                     document.getElementById("hasVideos").checked = p.get("hasVideos") === "1";
                     filter();
-                    
-                    // Auto-expand if filters are active
-                    const hasFilters = p.get("q") || p.get("minPhotos") || p.get("hasVideos");
-                    if (hasFilters) {
-                        setTimeout(() => {
-                            document.querySelectorAll(".collection").forEach(col => {
-                                const visible = col.querySelectorAll(".album-card-wrapper:not(.hidden)");
-                                if (visible.length > 0) {
-                                    col.classList.add("open");
-                                    const i = col.querySelector(".collection-header .toggle");
-                                    if(i) i.textContent = "[-]";
-                                }
-                            });
-                        }, 100);
-                    }
                 })();
             </script>
         </body>
