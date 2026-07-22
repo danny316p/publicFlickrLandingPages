@@ -19,7 +19,7 @@ const suffix = mode;
 
 // ---------- SEPARATE CACHE DIRS PER MODE ----------
 const BASE_CACHE_DIR = path.join(__dirname, ".cache");
-const CACHE_DIR = path.join(BASE_CACHE_DIR, mode); // Separate subdir for each mode
+const CACHE_DIR = path.join(BASE_CACHE_DIR, mode);
 const CACHE_TTL = 1000 * 60 * 60 * 24 * 7;
 const FORCE_REFRESH = process.argv.includes("--refresh");
 
@@ -262,9 +262,11 @@ function countCols(cols) {
 function buildHTML(collections, user, totals) {
     const name = user.realname || user.username;
 
-    function render(col) {
+    function render(col, depth = 0) {
+        const levelClass = `collection-level-${Math.min(depth, 3)}`;
+        
         return `
-            <div class="collection">
+            <div class="collection ${levelClass}">
                 <div class="collection-header" onclick="toggle(this)">
                     <span>
                         <a href="${collectionUrl(col.id, user)}" target="_blank">${col.title}</a>
@@ -281,18 +283,23 @@ function buildHTML(collections, user, totals) {
                 <div class="children">
                     <div class="albums">
                         ${(col.set || []).map(s => `
-                            <a class="album-card" href="${s.url}" target="_blank" data-title="${s.title.toLowerCase()}" data-photos="${s.photos}" data-videos="${s.videos}">
-                                ${s.thumb ? `<img src="${s.thumb}" loading="lazy" onerror="this.style.display='none'">` : ""}
-                                <div class="album-info">
-                                    <div class="album-title">${s.title}</div>
-                                    <div class="meta">
-                                        ${s.photos ? `${s.photos.toLocaleString()} photos ` : ""} ${s.videos ? `• ${s.videos.toLocaleString()} videos` : ""}
+                            <div class="album-card-wrapper">
+                                <a class="album-card" href="${s.url}" target="_blank" data-title="${s.title.toLowerCase()}" data-photos="${s.photos}" data-videos="${s.videos}">
+                                    ${s.thumb ? `<img src="${s.thumb}" loading="lazy" onerror="this.style.display='none'">` : `<div class="album-placeholder">📷</div>`}
+                                    <div class="album-info">
+                                        <div class="album-title">${s.title}</div>
+                                        <div class="meta">
+                                            ${s.photos ? `${s.photos.toLocaleString()} photos ` : ""} ${s.videos ? `• ${s.videos.toLocaleString()} videos` : ""}
+                                        </div>
                                     </div>
-                                </div>
-                            </a>
+                                    <div class="album-actions">
+                                        <button onclick="event.preventDefault();event.stopPropagation();copyLink('${s.url}')" title="Copy link">🔗</button>
+                                    </div>
+                                </a>
+                            </div>
                         `).join("")}
                     </div>
-                    ${(col.collection || []).map(render).join("")}
+                    ${(col.collection || []).map(c => render(c, depth + 1)).join("")}
                 </div>
             </div>`;
     }
@@ -304,96 +311,414 @@ function buildHTML(collections, user, totals) {
             <title>${name} – Flickr Sitemap</title>
 
             <style>
-                body{font-family:Arial; background:#f5f5f5; margin:0}
-                .header{
-                    position:sticky;
-                    top:0;
-                    background:#fff;
-                    padding:10px;
-                    display:flex;
-                    gap:10px;
-                    align-items:center;
-                    border-bottom:1px solid #ddd;
-                    z-index:1000;
+                * {
+                    box-sizing: border-box;
                 }
-                .header img{width:48px; height:48px; border-radius:50%}
-                .controls{
-                    display:flex;
-                    gap:10px;
-                    flex-wrap:wrap; 
-                    padding:10px; 
-                    background:#fff; 
-                    margin:10px; 
-                    border-radius:8px;
-                    align-items:center;
+                
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+                    background: #f5f5f5;
+                    margin: 0;
+                    padding: 0;
+                    color: #333;
+                    transition: background 0.3s, color 0.3s;
                 }
-                .collection{margin:10px}
-                .collection-header{
-                    background:#fff; 
-                    padding:10px; 
-                    border-radius:8px; 
-                    cursor:pointer; 
-                    display:flex; 
-                    justify-content:space-between
+                
+                .header {
+                    position: sticky;
+                    top: 0;
+                    background: #fff;
+                    padding: 12px 20px;
+                    display: flex;
+                    gap: 12px;
+                    align-items: center;
+                    border-bottom: 1px solid #ddd;
+                    z-index: 1000;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                    transition: background 0.3s, border-color 0.3s;
                 }
-                .children{display:none; margin-left:10px}
-                .collection.open>.children{display:block}
-
-                /* GRID */
-                body.grid .albums{
-                    display:grid; 
-                    grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); 
-                    gap:10px
+                
+                .header img {
+                    width: 48px;
+                    height: 48px;
+                    border-radius: 50%;
+                    border: 2px solid #e0e0e0;
                 }
-
-                /* LIST */
-                body.list .albums{
-                    display:flex; 
-                    flex-direction:column; 
-                    gap:6px
+                
+                .header h1 {
+                    font-size: 18px;
+                    margin: 0;
+                    font-weight: 600;
                 }
-                body.list .album-card{
-                    display:flex; 
-                    align-items:center
+                
+                .header .subtitle {
+                    font-size: 13px;
+                    color: #666;
                 }
-                body.list .album-card img{
-                    width:80px; 
-                    height:80px; 
-                    object-fit:cover; 
-                    margin-right:10px
+                
+                .header a {
+                    color: #1a73e8;
+                    text-decoration: none;
+                }
+                
+                .header a:hover {
+                    text-decoration: underline;
                 }
 
-                /* CARD */
-                .album-card{
-                    background:#fff; 
-                    border-radius:8px; 
-                    overflow:hidden; 
-                    text-decoration:none; 
-                    color:black
+                /* Stats Bar */
+                .stats-bar {
+                    display: flex;
+                    gap: 24px;
+                    padding: 12px 20px;
+                    background: #f8f9fa;
+                    border-radius: 8px;
+                    margin: 10px;
+                    flex-wrap: wrap;
+                    border: 1px solid #e9ecef;
+                    align-items: center;
+                    transition: background 0.3s, border-color 0.3s;
                 }
-                .album-card img{
-                    width:100%; 
-                    height:140px; 
-                    object-fit:cover
+                
+                .stat-item {
+                    display: flex;
+                    align-items: baseline;
+                    gap: 6px;
+                    font-size: 14px;
                 }
-                .album-info{padding:8px}
-                .album-title{font-weight:bold}
-                .meta{font-size:.8em; color:#555}
-                .hidden{display:none!important}
-
-                /* Toggle Switch */
+                
+                .stat-number {
+                    font-weight: bold;
+                    color: #1a73e8;
+                    font-size: 18px;
+                }
+                
+                .stat-label {
+                    color: #666;
+                    font-size: 13px;
+                }
+                
+                .stat-divider {
+                    color: #ddd;
+                }
+                
+                .filter-results {
+                    font-size: 13px;
+                    color: #666;
+                    padding: 4px 12px;
+                    background: #e9ecef;
+                    border-radius: 4px;
+                    display: inline-block;
+                }
+                
+                .controls {
+                    display: flex;
+                    gap: 10px;
+                    flex-wrap: wrap;
+                    padding: 12px 16px;
+                    background: #fff;
+                    margin: 10px;
+                    border-radius: 8px;
+                    align-items: center;
+                    border: 1px solid #e9ecef;
+                    transition: background 0.3s, border-color 0.3s;
+                }
+                
+                .controls input[type="text"],
+                .controls input[type="number"] {
+                    padding: 8px 12px;
+                    border: 1px solid #ddd;
+                    border-radius: 6px;
+                    font-size: 14px;
+                    transition: border-color 0.2s;
+                }
+                
+                .controls input[type="text"]:focus,
+                .controls input[type="number"]:focus {
+                    outline: none;
+                    border-color: #1a73e8;
+                    box-shadow: 0 0 0 3px rgba(26,115,232,0.1);
+                }
+                
+                .controls label {
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    font-size: 14px;
+                    cursor: pointer;
+                }
+                
+                .controls button {
+                    padding: 8px 16px;
+                    border: 1px solid #ddd;
+                    border-radius: 6px;
+                    background: #f8f9fa;
+                    cursor: pointer;
+                    font-size: 14px;
+                    transition: all 0.2s;
+                    color: #333;
+                }
+                
+                .controls button:hover {
+                    background: #e9ecef;
+                    border-color: #ccc;
+                }
+                
+                .controls button.primary {
+                    background: #1a73e8;
+                    color: white;
+                    border-color: #1a73e8;
+                }
+                
+                .controls button.primary:hover {
+                    background: #1557b0;
+                    border-color: #1557b0;
+                }
+                
+                .collection {
+                    margin: 10px;
+                }
+                
+                .collection-header {
+                    background: #fff;
+                    padding: 12px 16px;
+                    border-radius: 8px;
+                    cursor: pointer;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    border: 1px solid #e9ecef;
+                    transition: all 0.2s;
+                    user-select: none;
+                }
+                
+                .collection-header:hover {
+                    background: #f8f9fa;
+                    border-color: #dee2e6;
+                }
+                
+                .collection-header a {
+                    color: #1a73e8;
+                    text-decoration: none;
+                    font-weight: 500;
+                }
+                
+                .collection-header a:hover {
+                    text-decoration: underline;
+                }
+                
+                .collection-header .meta {
+                    font-weight: normal;
+                }
+                
+                .collection-header .toggle {
+                    font-weight: bold;
+                    color: #666;
+                    font-size: 18px;
+                }
+                
+                .children {
+                    display: none;
+                    margin-left: 20px;
+                    padding-top: 10px;
+                }
+                
+                .collection.open > .children {
+                    display: block;
+                    animation: fadeSlide 0.25s ease-out;
+                }
+                
+                @keyframes fadeSlide {
+                    from {
+                        opacity: 0;
+                        transform: translateY(-8px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+                
+                /* Collection level indicators */
+                .collection-level-0 > .collection-header {
+                    border-left: 4px solid #1a73e8;
+                }
+                .collection-level-1 > .collection-header {
+                    border-left: 4px solid #34a853;
+                }
+                .collection-level-2 > .collection-header {
+                    border-left: 4px solid #fbbc04;
+                }
+                .collection-level-3 > .collection-header {
+                    border-left: 4px solid #ea4335;
+                }
+                
+                /* Album grid */
+                body.grid .albums {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                    gap: 12px;
+                    padding: 4px 0;
+                }
+                
+                /* Album list */
+                body.list .albums {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                    padding: 4px 0;
+                }
+                
+                body.list .album-card-wrapper {
+                    width: 100%;
+                }
+                
+                body.list .album-card {
+                    display: flex;
+                    align-items: center;
+                    padding: 8px 12px;
+                    height: auto;
+                    min-height: 80px;
+                }
+                
+                body.list .album-card img,
+                body.list .album-card .album-placeholder {
+                    width: 80px;
+                    height: 80px;
+                    flex-shrink: 0;
+                    margin-right: 12px;
+                    border-radius: 6px;
+                }
+                
+                body.list .album-card .album-info {
+                    flex: 1;
+                }
+                
+                body.list .album-card .album-actions {
+                    position: static;
+                    margin-left: auto;
+                }
+                
+                body.list .album-card:hover .album-actions {
+                    display: flex;
+                }
+                
+                /* Album card */
+                .album-card-wrapper {
+                    position: relative;
+                }
+                
+                .album-card {
+                    display: block;
+                    background: #fff;
+                    border-radius: 10px;
+                    overflow: hidden;
+                    text-decoration: none;
+                    color: #333;
+                    transition: transform 0.2s, box-shadow 0.2s;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+                    border: 1px solid #e9ecef;
+                    height: 100%;
+                    position: relative;
+                }
+                
+                .album-card:hover {
+                    transform: translateY(-3px);
+                    box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+                    border-color: #d0d0d0;
+                }
+                
+                .album-card img {
+                    width: 100%;
+                    height: 160px;
+                    object-fit: cover;
+                    display: block;
+                    background: #f0f0f0;
+                    transition: transform 0.3s;
+                }
+                
+                .album-card:hover img {
+                    transform: scale(1.02);
+                }
+                
+                .album-placeholder {
+                    width: 100%;
+                    height: 160px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: #f0f0f0;
+                    font-size: 48px;
+                    color: #ccc;
+                }
+                
+                .album-info {
+                    padding: 10px 12px 12px;
+                }
+                
+                .album-title {
+                    font-weight: 600;
+                    font-size: 14px;
+                    margin-bottom: 4px;
+                    display: -webkit-box;
+                    -webkit-line-clamp: 2;
+                    -webkit-box-orient: vertical;
+                    overflow: hidden;
+                    line-height: 1.3;
+                }
+                
+                .album-actions {
+                    position: absolute;
+                    top: 8px;
+                    right: 8px;
+                    display: none;
+                    gap: 4px;
+                    z-index: 10;
+                }
+                
+                .album-card:hover .album-actions {
+                    display: flex;
+                }
+                
+                .album-actions button {
+                    background: rgba(255,255,255,0.95);
+                    border: 1px solid #ddd;
+                    border-radius: 6px;
+                    padding: 4px 8px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    transition: all 0.2s;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+                }
+                
+                .album-actions button:hover {
+                    background: #fff;
+                    border-color: #1a73e8;
+                    transform: scale(1.05);
+                }
+                
+                .meta {
+                    font-size: 12px;
+                    color: #888;
+                }
+                
+                .hidden {
+                    display: none !important;
+                }
+                
                 .toggle-switch {
                     position: relative;
                     display: inline-block;
-                    width: 60px;
-                    height: 34px;
+                    width: 50px;
+                    height: 28px;
                     flex-shrink: 0;
                 }
+                
                 .toggle-switch input {
                     opacity: 0;
                     width: 0;
                     height: 0;
                 }
+                
                 .toggle-slider {
                     position: absolute;
                     cursor: pointer;
@@ -402,43 +727,286 @@ function buildHTML(collections, user, totals) {
                     right: 0;
                     bottom: 0;
                     background-color: #ccc;
-                    transition: .4s;
-                    border-radius: 34px;
+                    transition: .3s;
+                    border-radius: 28px;
                 }
+                
                 .toggle-slider:before {
                     position: absolute;
                     content: "";
-                    height: 26px;
-                    width: 26px;
+                    height: 20px;
+                    width: 20px;
                     left: 4px;
                     bottom: 4px;
                     background-color: white;
-                    transition: .4s;
+                    transition: .3s;
                     border-radius: 50%;
                 }
+                
                 input:checked + .toggle-slider {
-                    background-color: #2196F3;
+                    background-color: #1a73e8;
                 }
+                
                 input:focus + .toggle-slider {
-                    box-shadow: 0 0 1px #2196F3;
+                    box-shadow: 0 0 0 3px rgba(26,115,232,0.2);
                 }
+                
                 input:checked + .toggle-slider:before {
-                    transform: translateX(26px);
+                    transform: translateX(22px);
                 }
+                
                 .toggle-label {
                     display: flex;
                     align-items: center;
-                    gap: 8px;
+                    gap: 6px;
                     font-size: 14px;
                     color: #555;
                 }
+                
                 .toggle-label .grid-icon,
                 .toggle-label .list-icon {
                     font-size: 18px;
                 }
+                
                 .view-label {
-                    font-weight: bold;
+                    font-weight: 600;
                     color: #333;
+                    min-width: 36px;
+                }
+                
+                #clearFilters,
+                #clearFiltersBtn {
+                    display: none;
+                }
+                
+                /* Notification toast */
+                .toast {
+                    position: fixed;
+                    bottom: 30px;
+                    right: 30px;
+                    background: #333;
+                    color: white;
+                    padding: 12px 24px;
+                    border-radius: 8px;
+                    z-index: 9999;
+                    animation: slideIn 0.3s ease-out;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                    font-size: 14px;
+                }
+                
+                @keyframes slideIn {
+                    from {
+                        opacity: 0;
+                        transform: translateY(20px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+                
+                /* Dark mode */
+                @media (prefers-color-scheme: dark) {
+                    body {
+                        background: #1a1a1a;
+                        color: #e0e0e0;
+                    }
+                    
+                    .header,
+                    .controls,
+                    .collection-header,
+                    .album-card,
+                    .stats-bar {
+                        background: #2d2d2d;
+                        border-color: #444;
+                    }
+                    
+                    .header {
+                        border-bottom-color: #444;
+                    }
+                    
+                    .collection-header:hover {
+                        background: #383838;
+                    }
+                    
+                    .album-card:hover {
+                        border-color: #555;
+                    }
+                    
+                    .album-card,
+                    .collection-header a {
+                        color: #e0e0e0;
+                    }
+                    
+                    .meta,
+                    .stat-label,
+                    .filter-results,
+                    .collection-header .meta {
+                        color: #aaa;
+                    }
+                    
+                    .stat-number {
+                        color: #4fc3f7;
+                    }
+                    
+                    .controls input[type="text"],
+                    .controls input[type="number"] {
+                        background: #3d3d3d;
+                        border-color: #555;
+                        color: #e0e0e0;
+                    }
+                    
+                    .controls input[type="text"]:focus,
+                    .controls input[type="number"]:focus {
+                        border-color: #4fc3f7;
+                        box-shadow: 0 0 0 3px rgba(79,195,247,0.1);
+                    }
+                    
+                    .controls button {
+                        background: #3d3d3d;
+                        border-color: #555;
+                        color: #e0e0e0;
+                    }
+                    
+                    .controls button:hover {
+                        background: #4d4d4d;
+                        border-color: #666;
+                    }
+                    
+                    .controls button.primary {
+                        background: #1a73e8;
+                        color: white;
+                        border-color: #1a73e8;
+                    }
+                    
+                    .album-actions button {
+                        background: rgba(45,45,45,0.95);
+                        border-color: #555;
+                        color: #e0e0e0;
+                    }
+                    
+                    .album-actions button:hover {
+                        background: #4d4d4d;
+                        border-color: #4fc3f7;
+                    }
+                    
+                    .album-placeholder {
+                        background: #3d3d3d;
+                    }
+                    
+                    .filter-results {
+                        background: #3d3d3d;
+                    }
+                    
+                    .stats-bar {
+                        border-color: #444;
+                    }
+                    
+                    .stat-divider {
+                        color: #555;
+                    }
+                    
+                    .collection-level-0 > .collection-header {
+                        border-left-color: #4fc3f7;
+                    }
+                    .collection-level-1 > .collection-header {
+                        border-left-color: #81c784;
+                    }
+                    .collection-level-2 > .collection-header {
+                        border-left-color: #ffd54f;
+                    }
+                    .collection-level-3 > .collection-header {
+                        border-left-color: #ef5350;
+                    }
+                }
+                
+                /* Responsive */
+                @media (max-width: 768px) {
+                    .header {
+                        flex-wrap: wrap;
+                        padding: 10px 12px;
+                    }
+                    
+                    .header h1 {
+                        font-size: 16px;
+                    }
+                    
+                    .stats-bar {
+                        gap: 12px;
+                        padding: 10px 12px;
+                        margin: 8px;
+                        font-size: 12px;
+                    }
+                    
+                    .stat-number {
+                        font-size: 16px;
+                    }
+                    
+                    .controls {
+                        padding: 10px 12px;
+                        margin: 8px;
+                        gap: 8px;
+                    }
+                    
+                    .controls input[type="text"] {
+                        width: 120px;
+                    }
+                    
+                    .controls input[type="number"] {
+                        width: 80px;
+                    }
+                    
+                    body.grid .albums {
+                        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+                        gap: 8px;
+                    }
+                    
+                    .album-card img,
+                    .album-placeholder {
+                        height: 120px;
+                    }
+                    
+                    .collection {
+                        margin: 8px;
+                    }
+                    
+                    .collection-header {
+                        padding: 10px 12px;
+                        font-size: 14px;
+                    }
+                    
+                    .children {
+                        margin-left: 12px;
+                    }
+                    
+                    .toggle-label .grid-icon,
+                    .toggle-label .list-icon {
+                        font-size: 16px;
+                    }
+                }
+                
+                @media (max-width: 480px) {
+                    .header img {
+                        width: 36px;
+                        height: 36px;
+                    }
+                    
+                    body.grid .albums {
+                        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+                    }
+                    
+                    .album-card img,
+                    .album-placeholder {
+                        height: 100px;
+                    }
+                    
+                    .album-title {
+                        font-size: 12px;
+                    }
+                    
+                    .meta {
+                        font-size: 11px;
+                    }
                 }
             </style>
         </head>
@@ -449,19 +1017,38 @@ function buildHTML(collections, user, totals) {
                     <img src="${avatarUrl(user)}" alt="avatar">
                 </a>
                 <div>
-                    <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank">${name}</a>'s 
-                    <a href="https://www.flickr.com/">Flickr</a> sitemap
-                    <div class="meta">
-                        ${totals.collections.toLocaleString()} collections •
-                        ${totals.albums.toLocaleString()} albums •
-                        ${totals.photos.toLocaleString()} photos
-                    </div>
+                    <h1>
+                        <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank">${name}</a>'s 
+                        <a href="https://www.flickr.com/">Flickr</a> Sitemap
+                    </h1>
+                    <div class="subtitle">Browse and filter all collections and albums</div>
+                </div>
+            </div>
+
+            <div class="stats-bar">
+                <div class="stat-item">
+                    <span class="stat-number">${totals.collections.toLocaleString()}</span>
+                    <span class="stat-label">Collections</span>
+                </div>
+                <span class="stat-divider">•</span>
+                <div class="stat-item">
+                    <span class="stat-number">${totals.albums.toLocaleString()}</span>
+                    <span class="stat-label">Albums</span>
+                </div>
+                <span class="stat-divider">•</span>
+                <div class="stat-item">
+                    <span class="stat-number">${totals.photos.toLocaleString()}</span>
+                    <span class="stat-label">Photos</span>
+                </div>
+                <div style="margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <span class="filter-results" id="filterResults">All albums</span>
+                    <button onclick="resetFilters()" id="clearFilters" style="display:none;" class="primary">✕ Clear filters</button>
                 </div>
             </div>
 
             <div class="controls">
-                <input id="search" placeholder="Search albums...">
-                <input id="minPhotos" type="number" placeholder="Min photos" style="width:100px">
+                <input id="search" placeholder="Search albums..." style="flex:1; min-width:120px;">
+                <input id="minPhotos" type="number" placeholder="Min photos" style="width:100px;">
                 <label><input type="checkbox" id="hasVideos"> Has videos</label>
                 
                 <div class="toggle-label">
@@ -474,24 +1061,27 @@ function buildHTML(collections, user, totals) {
                     <span class="view-label" id="viewLabel">Grid</span>
                 </div>
                 
-                <button onclick="expandAll()">Expand all</button>
-                <button onclick="collapseAll()">Collapse all</button>
+                <button onclick="expandAll()">▼ Expand all</button>
+                <button onclick="collapseAll()">▶ Collapse all</button>
+                <button onclick="resetFilters()" id="clearFiltersBtn" style="display:none;" class="primary">✕ Clear</button>
+                <button onclick="exportData()">📤 Export</button>
             </div>
 
-            ${collections.map(render).join("")}
+            ${collections.map(c => render(c, 0)).join("")}
 
             <script>
+                // ---------- Toggle ----------
                 function toggle(header) {
                     const col = header.parentElement;
                     col.classList.toggle("open");
-                    const indicator = header.querySelector("span:last-child");
+                    const indicator = header.querySelector(".toggle");
                     if(indicator) indicator.textContent = col.classList.contains("open") ? "[-]" : "[+]";
                 }
 
                 function expandAll() {
                     document.querySelectorAll(".collection").forEach(c => {
                         c.classList.add("open");
-                        const i = c.querySelector(".collection-header span:last-child");
+                        const i = c.querySelector(".collection-header .toggle");
                         if(i) i.textContent = "[-]";
                     });
                 }
@@ -499,21 +1089,19 @@ function buildHTML(collections, user, totals) {
                 function collapseAll() {
                     document.querySelectorAll(".collection").forEach(c => {
                         c.classList.remove("open");
-                        const i = c.querySelector(".collection-header span:last-child");
+                        const i = c.querySelector(".collection-header .toggle");
                         if(i) i.textContent = "[+]";
                     });
                 }
 
+                // ---------- View toggle ----------
                 function setView(v) {
                     document.body.classList.remove("grid","list");
                     document.body.classList.add(v);
                     localStorage.setItem("view", v);
                     
-                    // Update toggle switch
                     const toggle = document.getElementById("viewToggle");
                     toggle.checked = (v === "list");
-                    
-                    // Update label
                     document.getElementById("viewLabel").textContent = v === "grid" ? "Grid" : "List";
                     
                     const p = new URLSearchParams(window.location.search);
@@ -521,12 +1109,12 @@ function buildHTML(collections, user, totals) {
                     history.replaceState(null, "", "?" + p.toString());
                 }
 
-                // Toggle switch handler
                 document.getElementById("viewToggle").addEventListener("change", function() {
                     const view = this.checked ? "list" : "grid";
                     setView(view);
                 });
 
+                // ---------- Filter ----------
                 function filter() {
                     const q = document.getElementById("search").value.toLowerCase();
                     const min = +document.getElementById("minPhotos").value || 0;
@@ -538,25 +1126,160 @@ function buildHTML(collections, user, totals) {
                     vid ? p.set("hasVideos","1") : p.delete("hasVideos");
                     history.replaceState({}, '', location.pathname + '?' + p);
 
-                    document.querySelectorAll(".album-card").forEach(el => {
+                    let visibleCount = 0;
+                    let totalCount = 0;
+
+                    document.querySelectorAll(".album-card-wrapper").forEach(wrapper => {
+                        const el = wrapper.querySelector(".album-card");
                         const show = el.dataset.title.includes(q)
                             && (+el.dataset.photos) >= min
                             && (!vid || +el.dataset.videos > 0);
-                        el.classList.toggle("hidden", !show);
+                        wrapper.classList.toggle("hidden", !show);
+                        totalCount++;
+                        if (show) visibleCount++;
                     });
 
                     document.querySelectorAll(".collection").forEach(col => {
-                        const visibleAlbums = col.querySelectorAll(".album-card:not(.hidden)");
-                        col.classList.toggle("open", visibleAlbums.length > 0);
-                        const i = col.querySelector(".collection-header span:last-child");
-                        if(i) i.textContent = col.classList.contains("open") ? "[-]" : "[+]";
+                        const visibleAlbums = col.querySelectorAll(".album-card-wrapper:not(.hidden)");
+                        const hasVisible = visibleAlbums.length > 0;
+                        col.classList.toggle("open", hasVisible);
+                        const i = col.querySelector(".collection-header .toggle");
+                        if(i) i.textContent = hasVisible ? "[-]" : "[+]";
                     });
+
+                    // Update filter results
+                    const resultsEl = document.getElementById("filterResults");
+                    const clearBtn = document.getElementById("clearFilters");
+                    const clearBtn2 = document.getElementById("clearFiltersBtn");
+                    
+                    if (q || min > 0 || vid) {
+                        resultsEl.textContent = \`Showing \${visibleCount} of \${totalCount} albums\`;
+                        clearBtn.style.display = "inline-block";
+                        clearBtn2.style.display = "inline-block";
+                    } else {
+                        resultsEl.textContent = "All albums";
+                        clearBtn.style.display = "none";
+                        clearBtn2.style.display = "none";
+                    }
                 }
 
-                document.getElementById("search").oninput = filter;
-                document.getElementById("minPhotos").oninput = filter;
-                document.getElementById("hasVideos").onchange = filter;
+                function resetFilters() {
+                    document.getElementById("search").value = "";
+                    document.getElementById("minPhotos").value = "";
+                    document.getElementById("hasVideos").checked = false;
+                    filter();
+                    document.getElementById("search").focus();
+                }
 
+                // ---------- Copy link ----------
+                function copyLink(url) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    
+                    if (navigator.clipboard) {
+                        navigator.clipboard.writeText(url).then(() => {
+                            showToast("✅ Link copied!");
+                        }).catch(() => {
+                            fallbackCopy(url);
+                        });
+                    } else {
+                        fallbackCopy(url);
+                    }
+                }
+
+                function fallbackCopy(text) {
+                    const textarea = document.createElement('textarea');
+                    textarea.value = text;
+                    textarea.style.position = 'fixed';
+                    textarea.style.opacity = '0';
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    try {
+                        document.execCommand('copy');
+                        showToast("✅ Link copied!");
+                    } catch (err) {
+                        showToast("❌ Failed to copy link");
+                    }
+                    document.body.removeChild(textarea);
+                }
+
+                function showToast(message) {
+                    const existing = document.querySelector('.toast');
+                    if (existing) existing.remove();
+                    
+                    const toast = document.createElement('div');
+                    toast.className = 'toast';
+                    toast.textContent = message;
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 2000);
+                }
+
+                // ---------- Export ----------
+                function collectData() {
+                    const data = [];
+                    document.querySelectorAll(".collection").forEach(col => {
+                        const title = col.querySelector(".collection-header a")?.textContent || "Untitled";
+                        const albums = [];
+                        col.querySelectorAll(".album-card").forEach(card => {
+                            albums.push({
+                                title: card.querySelector(".album-title")?.textContent || "Untitled",
+                                photos: parseInt(card.dataset.photos) || 0,
+                                videos: parseInt(card.dataset.videos) || 0,
+                                url: card.href
+                            });
+                        });
+                        data.push({ title, albums });
+                    });
+                    return data;
+                }
+
+                function exportData() {
+                    const data = {
+                        generated: new Date().toISOString(),
+                        user: "${name}",
+                        totalCollections: ${totals.collections},
+                        totalAlbums: ${totals.albums},
+                        totalPhotos: ${totals.photos},
+                        collections: collectData()
+                    };
+                    
+                    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = \`flickr-sitemap-\${new Date().toISOString().split('T')[0]}.json\`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    showToast("📤 Export complete!");
+                }
+
+                // ---------- Keyboard shortcuts ----------
+                document.addEventListener('keydown', function(e) {
+                    // Ctrl+F or / to focus search (but not in input fields)
+                    const tag = e.target.tagName;
+                    if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+                        if ((e.ctrlKey && e.key === 'f') || e.key === '/') {
+                            e.preventDefault();
+                            document.getElementById('search').focus();
+                            document.getElementById('search').select();
+                        }
+                    }
+                    
+                    // Escape to clear search
+                    if (e.key === 'Escape') {
+                        const search = document.getElementById('search');
+                        if (document.activeElement === search) {
+                            resetFilters();
+                            search.blur();
+                        } else {
+                            resetFilters();
+                        }
+                    }
+                });
+
+                // ---------- Init ----------
                 (function() {
                     const p = new URLSearchParams(window.location.search);
                     const view = p.get("view") || localStorage.getItem("view") || "grid";
@@ -565,6 +1288,21 @@ function buildHTML(collections, user, totals) {
                     document.getElementById("minPhotos").value = p.get("minPhotos") || "";
                     document.getElementById("hasVideos").checked = p.get("hasVideos") === "1";
                     filter();
+                    
+                    // Auto-expand if filters are active
+                    const hasFilters = p.get("q") || p.get("minPhotos") || p.get("hasVideos");
+                    if (hasFilters) {
+                        setTimeout(() => {
+                            document.querySelectorAll(".collection").forEach(col => {
+                                const visible = col.querySelectorAll(".album-card-wrapper:not(.hidden)");
+                                if (visible.length > 0) {
+                                    col.classList.add("open");
+                                    const i = col.querySelector(".collection-header .toggle");
+                                    if(i) i.textContent = "[-]";
+                                }
+                            });
+                        }, 100);
+                    }
                 })();
             </script>
         </body>
