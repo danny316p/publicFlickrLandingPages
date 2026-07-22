@@ -17,6 +17,7 @@ const mode = process.env.FLICKR_MODE ||
              (process.argv.includes("--private") ? "private" : "public");
 const suffix = mode;
 
+// ---------- SEPARATE CACHE DIRS PER MODE ----------
 const BASE_CACHE_DIR = path.join(__dirname, ".cache");
 const CACHE_DIR = path.join(BASE_CACHE_DIR, mode); // Separate subdir for each mode
 const CACHE_TTL = 1000 * 60 * 60 * 24 * 7;
@@ -323,7 +324,8 @@ function buildHTML(collections, user, totals) {
                     padding:10px; 
                     background:#fff; 
                     margin:10px; 
-                    border-radius:8px
+                    border-radius:8px;
+                    align-items:center;
                 }
                 .collection{margin:10px}
                 .collection-header{
@@ -378,6 +380,66 @@ function buildHTML(collections, user, totals) {
                 .album-title{font-weight:bold}
                 .meta{font-size:.8em; color:#555}
                 .hidden{display:none!important}
+
+                /* Toggle Switch */
+                .toggle-switch {
+                    position: relative;
+                    display: inline-block;
+                    width: 60px;
+                    height: 34px;
+                    flex-shrink: 0;
+                }
+                .toggle-switch input {
+                    opacity: 0;
+                    width: 0;
+                    height: 0;
+                }
+                .toggle-slider {
+                    position: absolute;
+                    cursor: pointer;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background-color: #ccc;
+                    transition: .4s;
+                    border-radius: 34px;
+                }
+                .toggle-slider:before {
+                    position: absolute;
+                    content: "";
+                    height: 26px;
+                    width: 26px;
+                    left: 4px;
+                    bottom: 4px;
+                    background-color: white;
+                    transition: .4s;
+                    border-radius: 50%;
+                }
+                input:checked + .toggle-slider {
+                    background-color: #2196F3;
+                }
+                input:focus + .toggle-slider {
+                    box-shadow: 0 0 1px #2196F3;
+                }
+                input:checked + .toggle-slider:before {
+                    transform: translateX(26px);
+                }
+                .toggle-label {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-size: 14px;
+                    color: #555;
+                }
+                .toggle-label .grid-icon,
+                .toggle-label .list-icon {
+                    font-size: 18px;
+                }
+                .view-label {
+                    font-weight: bold;
+                    color: #333;
+                }
             </style>
         </head>
 
@@ -398,11 +460,20 @@ function buildHTML(collections, user, totals) {
             </div>
 
             <div class="controls">
-                <input id="search" placeholder="Search">
-                <input id="minPhotos" type="number" placeholder="Min photos">
-                <label><input type="checkbox" id="hasVideos"> videos</label>
-                <button onclick="setView('grid')">Grid</button>
-                <button onclick="setView('list')">List</button>
+                <input id="search" placeholder="Search albums...">
+                <input id="minPhotos" type="number" placeholder="Min photos" style="width:100px">
+                <label><input type="checkbox" id="hasVideos"> Has videos</label>
+                
+                <div class="toggle-label">
+                    <span class="grid-icon">▦</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="viewToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="list-icon">☰</span>
+                    <span class="view-label" id="viewLabel">Grid</span>
+                </div>
+                
                 <button onclick="expandAll()">Expand all</button>
                 <button onclick="collapseAll()">Collapse all</button>
             </div>
@@ -437,10 +508,24 @@ function buildHTML(collections, user, totals) {
                     document.body.classList.remove("grid","list");
                     document.body.classList.add(v);
                     localStorage.setItem("view", v);
+                    
+                    // Update toggle switch
+                    const toggle = document.getElementById("viewToggle");
+                    toggle.checked = (v === "list");
+                    
+                    // Update label
+                    document.getElementById("viewLabel").textContent = v === "grid" ? "Grid" : "List";
+                    
                     const p = new URLSearchParams(window.location.search);
                     p.set("view", v);
                     history.replaceState(null, "", "?" + p.toString());
                 }
+
+                // Toggle switch handler
+                document.getElementById("viewToggle").addEventListener("change", function() {
+                    const view = this.checked ? "list" : "grid";
+                    setView(view);
+                });
 
                 function filter() {
                     const q = document.getElementById("search").value.toLowerCase();
@@ -474,7 +559,8 @@ function buildHTML(collections, user, totals) {
 
                 (function() {
                     const p = new URLSearchParams(window.location.search);
-                    setView(p.get("view") || localStorage.getItem("view") || "grid");
+                    const view = p.get("view") || localStorage.getItem("view") || "grid";
+                    setView(view);
                     document.getElementById("search").value = p.get("q") || "";
                     document.getElementById("minPhotos").value = p.get("minPhotos") || "";
                     document.getElementById("hasVideos").checked = p.get("hasVideos") === "1";
@@ -490,7 +576,7 @@ function buildHTML(collections, user, totals) {
     try {
         console.log(`🔧 Running in ${mode.toUpperCase()} mode`);
         console.log(`📁 Cache directory: ${CACHE_DIR}`);
-
+        
         const [collections, photosets, user, totalPhotos] = await Promise.all([
             getCollections(),
             getPhotosets(),
