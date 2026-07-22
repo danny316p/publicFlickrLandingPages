@@ -17,11 +17,12 @@ const mode = process.env.FLICKR_MODE ||
              (process.argv.includes("--private") ? "private" : "public");
 const suffix = mode;
 
-const CACHE_DIR = path.join(__dirname, ".cache");
+const BASE_CACHE_DIR = path.join(__dirname, ".cache");
+const CACHE_DIR = path.join(BASE_CACHE_DIR, mode); // Separate subdir for each mode
 const CACHE_TTL = 1000 * 60 * 60 * 24 * 7;
 const FORCE_REFRESH = process.argv.includes("--refresh");
 
-if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR);
+if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
 
 // ---------- CACHE ----------
 function cachePath(key) {
@@ -487,6 +488,9 @@ function buildHTML(collections, user, totals) {
 // ---------- MAIN ----------
 (async () => {
     try {
+        console.log(`🔧 Running in ${mode.toUpperCase()} mode`);
+        console.log(`📁 Cache directory: ${CACHE_DIR}`);
+
         const [collections, photosets, user, totalPhotos] = await Promise.all([
             getCollections(),
             getPhotosets(),
@@ -513,8 +517,9 @@ function buildHTML(collections, user, totals) {
 
         const outputFile = `sitemap-${suffix}.html`;
         fs.writeFileSync(outputFile, buildHTML(tree, user, totals));
-        console.log(`✅ Generated ${outputFile} (${mode} mode)`);
+        console.log(`✅ Generated ${outputFile}`);
         console.log(`   ${totals.collections.toLocaleString()} collections, ${totals.albums.toLocaleString()} albums, ${totals.photos.toLocaleString()} photos`);
+        console.log(`   Cache TTL: ${CACHE_TTL / (1000 * 60 * 60 * 24)} days`);
     } catch (error) {
         console.error("❌ Error:", error.message);
         process.exit(1);
