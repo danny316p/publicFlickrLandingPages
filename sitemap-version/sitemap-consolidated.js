@@ -262,11 +262,17 @@ function countCols(cols) {
 function buildHTML(collections, user, totals) {
     const name = user.realname || user.username;
 
+    // Helper to escape strings for HTML attributes
+    function escapeAttr(str) {
+        return String(str).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
     function render(col, depth = 0) {
         const levelClass = `collection-level-${Math.min(depth, 3)}`;
+        const titleAttr = escapeAttr(col.title.toLowerCase());
         
         return `
-            <div class="collection ${levelClass}" data-collection-title="${col.title.toLowerCase()}">
+            <div class="collection ${levelClass}" data-collection-title="${titleAttr}">
                 <div class="collection-header" onclick="toggle(this)">
                     <span>
                         <a href="${collectionUrl(col.id, user)}" target="_blank">${col.title}</a>
@@ -282,14 +288,18 @@ function buildHTML(collections, user, totals) {
 
                 <div class="children">
                     <div class="albums">
-                        ${(col.set || []).map(s => `
-                            <div class="album-card-wrapper" data-album-title="${s.title.toLowerCase()}" data-photos="${s.photos}" data-videos="${s.videos}">
+                        ${(col.set || []).map(s => {
+                            const title = escapeAttr(s.title.toLowerCase());
+                            const photos = s.photos || 0;
+                            const videos = s.videos || 0;
+                            return `
+                            <div class="album-card-wrapper" data-title="${title}" data-photos="${photos}" data-videos="${videos}">
                                 <a class="album-card" href="${s.url}" target="_blank">
                                     ${s.thumb ? `<img src="${s.thumb}" loading="lazy" onerror="this.style.display='none'">` : `<div class="album-placeholder">📷</div>`}
                                     <div class="album-info">
                                         <div class="album-title">${s.title}</div>
                                         <div class="meta">
-                                            ${s.photos ? `${s.photos.toLocaleString()} photos ` : ""} ${s.videos ? `• ${s.videos.toLocaleString()} videos` : ""}
+                                            ${photos ? `${photos.toLocaleString()} photos ` : ""} ${videos ? `• ${videos.toLocaleString()} videos` : ""}
                                         </div>
                                     </div>
                                     <div class="album-actions">
@@ -297,7 +307,7 @@ function buildHTML(collections, user, totals) {
                                     </div>
                                 </a>
                             </div>
-                        `).join("")}
+                        `}).join("")}
                     </div>
                     ${(col.collection || []).map(c => render(c, depth + 1)).join("")}
                 </div>
@@ -311,9 +321,7 @@ function buildHTML(collections, user, totals) {
             <title>${name} – Flickr Sitemap</title>
 
             <style>
-                * {
-                    box-sizing: border-box;
-                }
+                * { box-sizing: border-box; }
                 
                 body {
                     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
@@ -321,7 +329,6 @@ function buildHTML(collections, user, totals) {
                     margin: 0;
                     padding: 0;
                     color: #333;
-                    transition: background 0.3s, color 0.3s;
                 }
                 
                 .header {
@@ -335,7 +342,6 @@ function buildHTML(collections, user, totals) {
                     border-bottom: 1px solid #ddd;
                     z-index: 1000;
                     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-                    transition: background 0.3s, border-color 0.3s;
                 }
                 
                 .header img {
@@ -365,7 +371,6 @@ function buildHTML(collections, user, totals) {
                     text-decoration: underline;
                 }
 
-                /* Stats Bar */
                 .stats-bar {
                     display: flex;
                     gap: 24px;
@@ -376,7 +381,6 @@ function buildHTML(collections, user, totals) {
                     flex-wrap: wrap;
                     border: 1px solid #e9ecef;
                     align-items: center;
-                    transition: background 0.3s, border-color 0.3s;
                 }
                 
                 .stat-item {
@@ -420,7 +424,6 @@ function buildHTML(collections, user, totals) {
                     border-radius: 8px;
                     align-items: center;
                     border: 1px solid #e9ecef;
-                    transition: background 0.3s, border-color 0.3s;
                 }
                 
                 .controls input[type="text"],
@@ -429,7 +432,6 @@ function buildHTML(collections, user, totals) {
                     border: 1px solid #ddd;
                     border-radius: 6px;
                     font-size: 14px;
-                    transition: border-color 0.2s;
                 }
                 
                 .controls input[type="text"]:focus,
@@ -538,7 +540,6 @@ function buildHTML(collections, user, totals) {
                     }
                 }
                 
-                /* Collection level indicators */
                 .collection-level-0 > .collection-header {
                     border-left: 4px solid #1a73e8;
                 }
@@ -552,7 +553,6 @@ function buildHTML(collections, user, totals) {
                     border-left: 4px solid #ea4335;
                 }
                 
-                /* Album grid */
                 body.grid .albums {
                     display: grid;
                     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -560,7 +560,6 @@ function buildHTML(collections, user, totals) {
                     padding: 4px 0;
                 }
                 
-                /* Album list */
                 body.list .albums {
                     display: flex;
                     flex-direction: column;
@@ -602,7 +601,6 @@ function buildHTML(collections, user, totals) {
                     display: flex;
                 }
                 
-                /* Album card */
                 .album-card-wrapper {
                     position: relative;
                 }
@@ -774,12 +772,6 @@ function buildHTML(collections, user, totals) {
                     min-width: 36px;
                 }
                 
-                #clearFilters,
-                #clearFiltersBtn {
-                    display: none;
-                }
-                
-                /* Notification toast */
                 .toast {
                     position: fixed;
                     bottom: 30px;
@@ -805,7 +797,6 @@ function buildHTML(collections, user, totals) {
                     }
                 }
                 
-                /* Dark mode */
                 @media (prefers-color-scheme: dark) {
                     body {
                         background: #1a1a1a;
@@ -920,7 +911,6 @@ function buildHTML(collections, user, totals) {
                     }
                 }
                 
-                /* Responsive */
                 @media (max-width: 768px) {
                     .header {
                         flex-wrap: wrap;
@@ -977,11 +967,6 @@ function buildHTML(collections, user, totals) {
                     
                     .children {
                         margin-left: 12px;
-                    }
-                    
-                    .toggle-label .grid-icon,
-                    .toggle-label .list-icon {
-                        font-size: 16px;
                     }
                 }
                 
@@ -1070,6 +1055,16 @@ function buildHTML(collections, user, totals) {
             ${collections.map(c => render(c, 0)).join("")}
 
             <script>
+                // ---------- DOM Elements ----------
+                const searchInput = document.getElementById('search');
+                const minPhotosInput = document.getElementById('minPhotos');
+                const hasVideosCheckbox = document.getElementById('hasVideos');
+                const viewToggle = document.getElementById('viewToggle');
+                const viewLabel = document.getElementById('viewLabel');
+                const filterResults = document.getElementById('filterResults');
+                const clearFiltersBtn = document.getElementById('clearFilters');
+                const clearFiltersBtn2 = document.getElementById('clearFiltersBtn');
+
                 // ---------- Toggle ----------
                 function toggle(header) {
                     const col = header.parentElement;
@@ -1100,95 +1095,90 @@ function buildHTML(collections, user, totals) {
                     document.body.classList.add(v);
                     localStorage.setItem("view", v);
                     
-                    const toggle = document.getElementById("viewToggle");
-                    toggle.checked = (v === "list");
-                    document.getElementById("viewLabel").textContent = v === "grid" ? "Grid" : "List";
+                    viewToggle.checked = (v === "list");
+                    viewLabel.textContent = v === "grid" ? "Grid" : "List";
                     
                     const p = new URLSearchParams(window.location.search);
                     p.set("view", v);
                     history.replaceState(null, "", "?" + p.toString());
                 }
 
-                document.getElementById("viewToggle").addEventListener("change", function() {
+                viewToggle.addEventListener("change", function() {
                     const view = this.checked ? "list" : "grid";
                     setView(view);
                 });
 
                 // ---------- Filter ----------
                 function filter() {
-                    const q = document.getElementById("search").value.toLowerCase().trim();
-                    const min = parseInt(document.getElementById("minPhotos").value) || 0;
-                    const vid = document.getElementById("hasVideos").checked;
+                    const searchTerm = searchInput.value.toLowerCase().trim();
+                    const minPhotos = parseInt(minPhotosInput.value) || 0;
+                    const hasVideos = hasVideosCheckbox.checked;
 
-                    // Update URL params
+                    // Update URL
                     const p = new URLSearchParams(window.location.search);
-                    if (q) p.set("q", q);
+                    if (searchTerm) p.set("q", searchTerm);
                     else p.delete("q");
-                    if (min > 0) p.set("minPhotos", min);
+                    if (minPhotos > 0) p.set("minPhotos", minPhotos);
                     else p.delete("minPhotos");
-                    if (vid) p.set("hasVideos", "1");
+                    if (hasVideos) p.set("hasVideos", "1");
                     else p.delete("hasVideos");
                     history.replaceState({}, '', location.pathname + '?' + p);
 
+                    // Filter albums
+                    const wrappers = document.querySelectorAll('.album-card-wrapper');
                     let visibleCount = 0;
-                    let totalCount = 0;
+                    const totalCount = wrappers.length;
 
-                    // Filter album wrappers
-                    document.querySelectorAll(".album-card-wrapper").forEach(wrapper => {
-                        const title = wrapper.dataset.albumTitle || "";
+                    wrappers.forEach(wrapper => {
+                        const title = wrapper.dataset.title || '';
                         const photos = parseInt(wrapper.dataset.photos) || 0;
                         const videos = parseInt(wrapper.dataset.videos) || 0;
                         
-                        const matchesSearch = !q || title.includes(q);
-                        const matchesMinPhotos = photos >= min;
-                        const matchesVideos = !vid || videos > 0;
+                        const matchesSearch = !searchTerm || title.includes(searchTerm);
+                        const matchesMinPhotos = photos >= minPhotos;
+                        const matchesVideos = !hasVideos || videos > 0;
                         
                         const show = matchesSearch && matchesMinPhotos && matchesVideos;
-                        wrapper.classList.toggle("hidden", !show);
-                        
-                        totalCount++;
+                        wrapper.classList.toggle('hidden', !show);
                         if (show) visibleCount++;
                     });
 
-                    // Show/hide collections based on visible albums
-                    document.querySelectorAll(".collection").forEach(col => {
-                        const visibleAlbums = col.querySelectorAll(".album-card-wrapper:not(.hidden)");
-                        const hasVisible = visibleAlbums.length > 0;
+                    // Show/hide collections
+                    document.querySelectorAll('.collection').forEach(col => {
+                        const visibleWrappers = col.querySelectorAll('.album-card-wrapper:not(.hidden)');
+                        const hasVisible = visibleWrappers.length > 0;
                         
-                        // Only auto-expand if there are visible albums
+                        // Auto-expand if has visible albums
                         if (hasVisible) {
-                            col.classList.add("open");
-                            const i = col.querySelector(".collection-header .toggle");
-                            if(i) i.textContent = "[-]";
+                            col.classList.add('open');
+                            const toggle = col.querySelector('.collection-header .toggle');
+                            if (toggle) toggle.textContent = '[-]';
                         } else {
-                            col.classList.remove("open");
-                            const i = col.querySelector(".collection-header .toggle");
-                            if(i) i.textContent = "[+]";
+                            col.classList.remove('open');
+                            const toggle = col.querySelector('.collection-header .toggle');
+                            if (toggle) toggle.textContent = '[+]';
                         }
                     });
 
-                    // Update filter results
-                    const resultsEl = document.getElementById("filterResults");
-                    const clearBtn = document.getElementById("clearFilters");
-                    const clearBtn2 = document.getElementById("clearFiltersBtn");
-                    
-                    if (q || min > 0 || vid) {
-                        resultsEl.textContent = \`Showing \${visibleCount} of \${totalCount} albums\`;
-                        clearBtn.style.display = "inline-block";
-                        clearBtn2.style.display = "inline-block";
+                    // Update results counter
+                    const hasFilters = searchTerm || minPhotos > 0 || hasVideos;
+                    if (hasFilters) {
+                        filterResults.textContent = \`Showing \${visibleCount} of \${totalCount} albums\`;
+                        clearFiltersBtn.style.display = 'inline-block';
+                        clearFiltersBtn2.style.display = 'inline-block';
                     } else {
-                        resultsEl.textContent = "All albums";
-                        clearBtn.style.display = "none";
-                        clearBtn2.style.display = "none";
+                        filterResults.textContent = 'All albums';
+                        clearFiltersBtn.style.display = 'none';
+                        clearFiltersBtn2.style.display = 'none';
                     }
                 }
 
                 function resetFilters() {
-                    document.getElementById("search").value = "";
-                    document.getElementById("minPhotos").value = "";
-                    document.getElementById("hasVideos").checked = false;
+                    searchInput.value = '';
+                    minPhotosInput.value = '';
+                    hasVideosCheckbox.checked = false;
                     filter();
-                    document.getElementById("search").focus();
+                    searchInput.focus();
                 }
 
                 // ---------- Copy link ----------
@@ -1237,14 +1227,14 @@ function buildHTML(collections, user, totals) {
                 // ---------- Export ----------
                 function collectData() {
                     const data = [];
-                    document.querySelectorAll(".collection").forEach(col => {
-                        const title = col.querySelector(".collection-header a")?.textContent || "Untitled";
+                    document.querySelectorAll('.collection').forEach(col => {
+                        const title = col.querySelector('.collection-header a')?.textContent || 'Untitled';
                         const albums = [];
-                        col.querySelectorAll(".album-card-wrapper:not(.hidden)").forEach(wrapper => {
-                            const card = wrapper.querySelector(".album-card");
+                        col.querySelectorAll('.album-card-wrapper:not(.hidden)').forEach(wrapper => {
+                            const card = wrapper.querySelector('.album-card');
                             if (card) {
                                 albums.push({
-                                    title: card.querySelector(".album-title")?.textContent || "Untitled",
+                                    title: card.querySelector('.album-title')?.textContent || 'Untitled',
                                     photos: parseInt(wrapper.dataset.photos) || 0,
                                     videos: parseInt(wrapper.dataset.videos) || 0,
                                     url: card.href
@@ -1282,36 +1272,40 @@ function buildHTML(collections, user, totals) {
 
                 // ---------- Keyboard shortcuts ----------
                 document.addEventListener('keydown', function(e) {
-                    // Ctrl+F or / to focus search (but not in input fields)
+                    // Ctrl+F or / to focus search
                     const tag = e.target.tagName;
                     if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
                         if ((e.ctrlKey && e.key === 'f') || e.key === '/') {
                             e.preventDefault();
-                            document.getElementById('search').focus();
-                            document.getElementById('search').select();
+                            searchInput.focus();
+                            searchInput.select();
                         }
                     }
                     
-                    // Escape to clear search
+                    // Escape to clear
                     if (e.key === 'Escape') {
-                        const search = document.getElementById('search');
-                        if (document.activeElement === search) {
+                        if (document.activeElement === searchInput) {
                             resetFilters();
-                            search.blur();
+                            searchInput.blur();
                         } else {
                             resetFilters();
                         }
                     }
                 });
 
+                // ---------- Event listeners ----------
+                searchInput.addEventListener('input', filter);
+                minPhotosInput.addEventListener('input', filter);
+                hasVideosCheckbox.addEventListener('change', filter);
+
                 // ---------- Init ----------
                 (function() {
                     const p = new URLSearchParams(window.location.search);
                     const view = p.get("view") || localStorage.getItem("view") || "grid";
                     setView(view);
-                    document.getElementById("search").value = p.get("q") || "";
-                    document.getElementById("minPhotos").value = p.get("minPhotos") || "";
-                    document.getElementById("hasVideos").checked = p.get("hasVideos") === "1";
+                    searchInput.value = p.get("q") || "";
+                    minPhotosInput.value = p.get("minPhotos") || "";
+                    hasVideosCheckbox.checked = p.get("hasVideos") === "1";
                     filter();
                 })();
             </script>
