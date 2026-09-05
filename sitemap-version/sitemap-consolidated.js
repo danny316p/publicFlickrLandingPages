@@ -307,7 +307,14 @@ function buildHTML(collections, user, totals) {
             <title>${name} – Flickr Sitemap</title>
 
             <style>
-                body{font-family:Arial; background:#f5f5f5; margin:0}
+                /* Light mode (default) */
+                body {
+                    font-family: Arial;
+                    background: #f5f5f5;
+                    margin: 0;
+                    color: #333;
+                    transition: background 0.3s, color 0.3s;
+                }
                 .header{
                     position:sticky;
                     top:0;
@@ -318,6 +325,7 @@ function buildHTML(collections, user, totals) {
                     align-items:center;
                     border-bottom:1px solid #ddd;
                     z-index:1000;
+                    transition: background 0.3s, border-color 0.3s;
                 }
                 .header img{width:48px; height:48px; border-radius:50%}
                 .controls{
@@ -329,6 +337,7 @@ function buildHTML(collections, user, totals) {
                     margin:10px;
                     border-radius:8px;
                     align-items:center;
+                    transition: background 0.3s, border-color 0.3s;
                 }
                 .collection{margin:10px}
                 .collection-header{
@@ -338,24 +347,24 @@ function buildHTML(collections, user, totals) {
                     cursor:pointer;
                     display:flex;
                     justify-content:space-between;
-                    border-left: 4px solid transparent; /* Base border */
-                    transition: border-color 0.2s;
+                    border-left: 4px solid transparent;
+                    transition: border-color 0.2s, background 0.3s;
                 }
                 .children{display:none; margin-left:20px}
                 .collection.open>.children{display:block}
 
                 /* Collection level indicators - color coded borders */
                 .collection-level-0 > .collection-header {
-                    border-left-color: #1a73e8; /* Blue - top level */
+                    border-left-color: #1a73e8;
                 }
                 .collection-level-1 > .collection-header {
-                    border-left-color: #34a853; /* Green - second level */
+                    border-left-color: #34a853;
                 }
                 .collection-level-2 > .collection-header {
-                    border-left-color: #fbbc04; /* Yellow - third level */
+                    border-left-color: #fbbc04;
                 }
                 .collection-level-3 > .collection-header {
-                    border-left-color: #ea4335; /* Red - fourth level and deeper */
+                    border-left-color: #ea4335;
                 }
 
                 /* GRID */
@@ -388,16 +397,18 @@ function buildHTML(collections, user, totals) {
                     border-radius:8px;
                     overflow:hidden;
                     text-decoration:none;
-                    color:black
+                    color:black;
+                    transition: background 0.3s, color 0.3s, box-shadow 0.3s;
                 }
                 .album-card img{
                     width:100%;
                     height:140px;
-                    object-fit:cover
+                    object-fit:cover;
+                    background: #f0f0f0;
                 }
                 .album-info{padding:8px}
                 .album-title{font-weight:bold}
-                .meta{font-size:.8em; color:#555}
+                .meta{font-size:.8em; color:#555; transition: color 0.3s;}
                 .hidden{display:none!important}
 
                 /* Toggle Switch */
@@ -450,6 +461,7 @@ function buildHTML(collections, user, totals) {
                     gap: 6px;
                     font-size: 14px;
                     color: #555;
+                    transition: color 0.3s;
                 }
                 .toggle-label .grid-icon,
                 .toggle-label .list-icon {
@@ -459,6 +471,7 @@ function buildHTML(collections, user, totals) {
                     font-weight: bold;
                     color: #333;
                     min-width: 36px;
+                    transition: color 0.3s;
                 }
 
                 /* Clear filters button - initially hidden */
@@ -474,6 +487,121 @@ function buildHTML(collections, user, totals) {
                     font-size: 11px;
                     color: #999;
                     margin-left: 4px;
+                }
+
+                /* ---------- DARK MODE ---------- */
+                @media (prefers-color-scheme: dark) {
+                    body {
+                        background: #1a1a1a;
+                        color: #e0e0e0;
+                    }
+
+                    .header {
+                        background: #2d2d2d;
+                        border-bottom-color: #444;
+                    }
+
+                    .controls {
+                        background: #2d2d2d;
+                    }
+
+                    .collection-header {
+                        background: #2d2d2d;
+                    }
+                    .collection-header:hover {
+                        background: #383838;
+                    }
+
+                    .album-card {
+                        background: #2d2d2d;
+                        color: #e0e0e0;
+                    }
+                    .album-card img {
+                        background: #3d3d3d;
+                    }
+
+                    .meta {
+                        color: #aaa;
+                    }
+
+                    .view-label {
+                        color: #e0e0e0;
+                    }
+
+                    .toggle-label {
+                        color: #aaa;
+                    }
+
+                    /* Collection level indicators - dark mode colors */
+                    .collection-level-0 > .collection-header {
+                        border-left-color: #4fc3f7;
+                    }
+                    .collection-level-1 > .collection-header {
+                        border-left-color: #81c784;
+                    }
+                    .collection-level-2 > .collection-header {
+                        border-left-color: #ffd54f;
+                    }
+                    .collection-level-3 > .collection-header {
+                        border-left-color: #ef5350;
+                    }
+
+                    /* Controls inputs */
+                    .controls input[type="text"],
+                    .controls input[type="number"] {
+                        background: #3d3d3d;
+                        border: 1px solid #555;
+                        color: #e0e0e0;
+                        padding: 6px 10px;
+                        border-radius: 4px;
+                    }
+                    .controls input[type="text"]:focus,
+                    .controls input[type="number"]:focus {
+                        border-color: #4fc3f7;
+                        outline: none;
+                    }
+
+                    /* Controls buttons */
+                    .controls button {
+                        background: #3d3d3d;
+                        border: 1px solid #555;
+                        color: #e0e0e0;
+                        padding: 6px 12px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                    }
+                    .controls button:hover {
+                        background: #4d4d4d;
+                    }
+
+                    /* Toggle switch in dark mode */
+                    .toggle-slider {
+                        background-color: #555;
+                    }
+                    input:checked + .toggle-slider {
+                        background-color: #4fc3f7;
+                    }
+
+                    /* Clear filters button in dark mode */
+                    #clearFilters {
+                        background: #3d3d3d;
+                        border: 1px solid #555;
+                        color: #e0e0e0;
+                        padding: 6px 12px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                    }
+                    #clearFilters:hover {
+                        background: #4d4d4d;
+                    }
+
+                    /* Links in dark mode */
+                    .collection-header a {
+                        color: #4fc3f7;
+                    }
+                    .header a {
+                        color: #4fc3f7;
+                    }
                 }
             </style>
         </head>
