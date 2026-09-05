@@ -262,9 +262,12 @@ function countCols(cols) {
 function buildHTML(collections, user, totals) {
     const name = user.realname || user.username;
 
-    function render(col) {
+    function render(col, depth = 0) {
+        // Add level class for styling
+        const levelClass = `collection-level-${Math.min(depth, 3)}`;
+        
         return `
-            <div class="collection">
+            <div class="collection ${levelClass}">
                 <div class="collection-header" onclick="toggle(this)">
                     <span>
                         <a href="${collectionUrl(col.id, user)}" target="_blank">${col.title}</a>
@@ -292,7 +295,7 @@ function buildHTML(collections, user, totals) {
                             </a>
                         `).join("")}
                     </div>
-                    ${(col.collection || []).map(render).join("")}
+                    ${(col.collection || []).map(c => render(c, depth + 1)).join("")}
                 </div>
             </div>`;
     }
@@ -334,10 +337,26 @@ function buildHTML(collections, user, totals) {
                     border-radius:8px; 
                     cursor:pointer; 
                     display:flex; 
-                    justify-content:space-between
+                    justify-content:space-between;
+                    border-left: 4px solid transparent; /* Base border */
+                    transition: border-color 0.2s;
                 }
-                .children{display:none; margin-left:10px}
+                .children{display:none; margin-left:20px}
                 .collection.open>.children{display:block}
+
+                /* Collection level indicators - color coded borders */
+                .collection-level-0 > .collection-header {
+                    border-left-color: #1a73e8; /* Blue - top level */
+                }
+                .collection-level-1 > .collection-header {
+                    border-left-color: #34a853; /* Green - second level */
+                }
+                .collection-level-2 > .collection-header {
+                    border-left-color: #fbbc04; /* Yellow - third level */
+                }
+                .collection-level-3 > .collection-header {
+                    border-left-color: #ea4335; /* Red - fourth level and deeper */
+                }
 
                 /* GRID */
                 body.grid .albums{
@@ -479,7 +498,7 @@ function buildHTML(collections, user, totals) {
                 <button onclick="collapseAll()">Collapse all</button>
             </div>
 
-            ${collections.map(render).join("")}
+            ${collections.map(c => render(c, 0)).join("")}
 
             <script>
                 function toggle(header) {
