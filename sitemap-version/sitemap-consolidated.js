@@ -460,6 +460,14 @@ function buildHTML(collections, user, totals) {
                     color: #333;
                     min-width: 36px;
                 }
+
+                /* Clear filters button - initially hidden */
+                #clearFilters {
+                    display: none;
+                }
+                #clearFilters.visible {
+                    display: inline-block;
+                }
             </style>
         </head>
 
@@ -496,6 +504,9 @@ function buildHTML(collections, user, totals) {
                 
                 <button onclick="expandAll()">Expand all</button>
                 <button onclick="collapseAll()">Collapse all</button>
+                
+                <!-- Clear Filters Button -->
+                <button id="clearFilters" onclick="resetFilters()">✕ Clear filters</button>
             </div>
 
             ${collections.map(c => render(c, 0)).join("")}
@@ -543,6 +554,14 @@ function buildHTML(collections, user, totals) {
                     setView(view);
                 });
 
+                function resetFilters() {
+                    document.getElementById("search").value = "";
+                    document.getElementById("minPhotos").value = "";
+                    document.getElementById("hasVideos").checked = false;
+                    filter();
+                    document.getElementById("search").focus();
+                }
+
                 function filter() {
                     const q = document.getElementById("search").value.toLowerCase();
                     const min = +document.getElementById("minPhotos").value || 0;
@@ -567,6 +586,15 @@ function buildHTML(collections, user, totals) {
                         const i = col.querySelector(".collection-header span:last-child");
                         if(i) i.textContent = col.classList.contains("open") ? "[-]" : "[+]";
                     });
+
+                    // Show/hide clear filters button
+                    const clearBtn = document.getElementById("clearFilters");
+                    const hasFilters = q || min > 0 || vid;
+                    if (hasFilters) {
+                        clearBtn.classList.add("visible");
+                    } else {
+                        clearBtn.classList.remove("visible");
+                    }
                 }
 
                 document.getElementById("search").oninput = filter;
