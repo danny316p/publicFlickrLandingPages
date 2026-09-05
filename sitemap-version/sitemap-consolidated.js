@@ -468,6 +468,13 @@ function buildHTML(collections, user, totals) {
                 #clearFilters.visible {
                     display: inline-block;
                 }
+
+                /* Keyboard shortcut hint */
+                .shortcut-hint {
+                    font-size: 11px;
+                    color: #999;
+                    margin-left: 4px;
+                }
             </style>
         </head>
 
@@ -600,6 +607,33 @@ function buildHTML(collections, user, totals) {
                 document.getElementById("search").oninput = filter;
                 document.getElementById("minPhotos").oninput = filter;
                 document.getElementById("hasVideos").onchange = filter;
+
+                // ---------- Keyboard Shortcuts ----------
+                document.addEventListener('keydown', function(e) {
+                    // Don't trigger shortcuts if user is typing in an input
+                    const tag = e.target.tagName;
+                    const isInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+
+                    // Ctrl+F or / to focus search (but not when typing in inputs)
+                    if (!isInput && ((e.ctrlKey && e.key === 'f') || e.key === '/')) {
+                        e.preventDefault();
+                        const search = document.getElementById('search');
+                        search.focus();
+                        search.select();
+                    }
+
+                    // Escape to clear filters (works anywhere)
+                    if (e.key === 'Escape') {
+                        const search = document.getElementById('search');
+                        // If search has focus and is not empty, clear it
+                        if (document.activeElement === search && search.value) {
+                            resetFilters();
+                            search.blur();
+                        } else {
+                            resetFilters();
+                        }
+                    }
+                });
 
                 (function() {
                     const p = new URLSearchParams(window.location.search);
