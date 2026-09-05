@@ -13,7 +13,7 @@ const OAUTH_TOKEN = config_consts.OAUTH_TOKEN;
 const OAUTH_TOKEN_SECRET = config_consts.OAUTH_TOKEN_SECRET;
 
 // Determine mode from filename or environment
-const mode = process.env.FLICKR_MODE || 
+const mode = process.env.FLICKR_MODE ||
              (process.argv.includes("--private") ? "private" : "public");
 const suffix = mode;
 
@@ -69,22 +69,22 @@ async function flickrCall(method, params = {}) {
     full.searchParams.set("api_key", API_KEY);
     full.searchParams.set("format", "json");
     full.searchParams.set("nojsoncallback", "1");
-    
+
     Object.entries(params).forEach(([k, v]) => full.searchParams.set(k, v));
 
     let headers = {};
 
     if (mode === "private") {
         setupOAuth();
-        const req = { 
-            url, 
-            method: "GET", 
-            data: { 
-                method, 
-                format: "json", 
-                nojsoncallback: "1", 
-                ...params 
-            } 
+        const req = {
+            url,
+            method: "GET",
+            data: {
+                method,
+                format: "json",
+                nojsoncallback: "1",
+                ...params
+            }
         };
         const authHeaders = oauth.toHeader(oauth.authorize(req, token));
         headers = authHeaders;
@@ -265,7 +265,7 @@ function buildHTML(collections, user, totals) {
     function render(col, depth = 0) {
         // Add level class for styling
         const levelClass = `collection-level-${Math.min(depth, 3)}`;
-        
+
         return `
             <div class="collection ${levelClass}">
                 <div class="collection-header" onclick="toggle(this)">
@@ -323,20 +323,20 @@ function buildHTML(collections, user, totals) {
                 .controls{
                     display:flex;
                     gap:10px;
-                    flex-wrap:wrap; 
-                    padding:10px; 
-                    background:#fff; 
-                    margin:10px; 
+                    flex-wrap:wrap;
+                    padding:10px;
+                    background:#fff;
+                    margin:10px;
                     border-radius:8px;
                     align-items:center;
                 }
                 .collection{margin:10px}
                 .collection-header{
-                    background:#fff; 
-                    padding:10px; 
-                    border-radius:8px; 
-                    cursor:pointer; 
-                    display:flex; 
+                    background:#fff;
+                    padding:10px;
+                    border-radius:8px;
+                    cursor:pointer;
+                    display:flex;
                     justify-content:space-between;
                     border-left: 4px solid transparent; /* Base border */
                     transition: border-color 0.2s;
@@ -360,39 +360,39 @@ function buildHTML(collections, user, totals) {
 
                 /* GRID */
                 body.grid .albums{
-                    display:grid; 
-                    grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); 
+                    display:grid;
+                    grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
                     gap:10px
                 }
 
                 /* LIST */
                 body.list .albums{
-                    display:flex; 
-                    flex-direction:column; 
+                    display:flex;
+                    flex-direction:column;
                     gap:6px
                 }
                 body.list .album-card{
-                    display:flex; 
+                    display:flex;
                     align-items:center
                 }
                 body.list .album-card img{
-                    width:80px; 
-                    height:80px; 
-                    object-fit:cover; 
+                    width:80px;
+                    height:80px;
+                    object-fit:cover;
                     margin-right:10px
                 }
 
                 /* CARD */
                 .album-card{
-                    background:#fff; 
-                    border-radius:8px; 
-                    overflow:hidden; 
-                    text-decoration:none; 
+                    background:#fff;
+                    border-radius:8px;
+                    overflow:hidden;
+                    text-decoration:none;
                     color:black
                 }
                 .album-card img{
-                    width:100%; 
-                    height:140px; 
+                    width:100%;
+                    height:140px;
                     object-fit:cover
                 }
                 .album-info{padding:8px}
@@ -477,7 +477,7 @@ function buildHTML(collections, user, totals) {
                     <img src="${avatarUrl(user)}" alt="avatar">
                 </a>
                 <div>
-                    <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank">${name}</a>'s 
+                    <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank">${name}</a>'s
                     <a href="https://www.flickr.com/">Flickr</a> sitemap
                     <div class="meta">
                         ${totals.collections.toLocaleString()} collections •
@@ -491,7 +491,7 @@ function buildHTML(collections, user, totals) {
                 <input id="search" placeholder="Search">
                 <input id="minPhotos" type="number" placeholder="Min photos">
                 <label><input type="checkbox" id="hasVideos"> videos</label>
-                
+
                 <div class="toggle-label">
                     <span class="grid-icon">▦</span>
                     <label class="toggle-switch">
@@ -501,10 +501,10 @@ function buildHTML(collections, user, totals) {
                     <span class="list-icon">☰</span>
                     <span class="view-label" id="viewLabel">Grid</span>
                 </div>
-                
+
                 <button onclick="expandAll()">Expand all</button>
                 <button onclick="collapseAll()">Collapse all</button>
-                
+
                 <!-- Clear Filters Button -->
                 <button id="clearFilters" onclick="resetFilters()">✕ Clear filters</button>
             </div>
@@ -539,11 +539,11 @@ function buildHTML(collections, user, totals) {
                     document.body.classList.remove("grid","list");
                     document.body.classList.add(v);
                     localStorage.setItem("view", v);
-                    
+
                     const toggle = document.getElementById("viewToggle");
                     toggle.checked = (v === "list");
                     document.getElementById("viewLabel").textContent = v === "grid" ? "Grid" : "List";
-                    
+
                     const p = new URLSearchParams(window.location.search);
                     p.set("view", v);
                     history.replaceState(null, "", "?" + p.toString());
@@ -620,7 +620,7 @@ function buildHTML(collections, user, totals) {
     try {
         console.log(`🔧 Running in ${mode.toUpperCase()} mode`);
         console.log(`📁 Cache directory: ${CACHE_DIR}`);
-        
+
         const [collections, photosets, user, totalPhotos] = await Promise.all([
             getCollections(),
             getPhotosets(),
@@ -629,14 +629,14 @@ function buildHTML(collections, user, totals) {
         ]);
 
         const map = buildMap(photosets);
-        
+
         let tree = collections.map(c => enrich(JSON.parse(JSON.stringify(c)), map));
-        
+
         // If private mode, prune empty collections
         if (mode === "private") {
             tree = tree.map(prune).filter(Boolean);
         }
-        
+
         tree.forEach(stats);
 
         const totals = {
