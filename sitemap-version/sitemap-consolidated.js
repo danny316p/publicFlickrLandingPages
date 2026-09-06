@@ -560,8 +560,9 @@ function buildHTML(collections, user, totals) {
                     background: #e9ecef;
                 }
 
-                /* Search toggle button in header */
-                .search-toggle {
+                /* Controls toggle button in controls bar */
+                .controls-toggle {
+                    margin-left: auto;
                     background: none;
                     border: 1px solid #ddd;
                     border-radius: 6px;
@@ -571,8 +572,26 @@ function buildHTML(collections, user, totals) {
                     transition: background 0.3s, border-color 0.3s;
                     flex-shrink: 0;
                 }
-                .search-toggle:hover {
+                .controls-toggle:hover {
                     background: #f0f0f0;
+                }
+
+                /* Show controls button (visible when controls are hidden) */
+                .show-controls-btn {
+                    background: none;
+                    border: 1px solid #ddd;
+                    border-radius: 6px;
+                    padding: 6px 10px;
+                    cursor: pointer;
+                    font-size: 16px;
+                    transition: background 0.3s, border-color 0.3s;
+                    flex-shrink: 0;
+                }
+                .show-controls-btn:hover {
+                    background: #f0f0f0;
+                }
+                .show-controls-btn.hidden {
+                    display: none;
                 }
 
                 /* Clear filters button - initially hidden */
@@ -686,6 +705,23 @@ function buildHTML(collections, user, totals) {
                         background: #4d4d4d;
                     }
 
+                    /* Controls toggle in dark mode */
+                    .controls-toggle {
+                        border-color: #555;
+                        color: #e0e0e0;
+                    }
+                    .controls-toggle:hover {
+                        background: #3d3d3d;
+                    }
+
+                    .show-controls-btn {
+                        border-color: #555;
+                        color: #e0e0e0;
+                    }
+                    .show-controls-btn:hover {
+                        background: #3d3d3d;
+                    }
+
                     /* Collection level indicators - dark mode colors */
                     .collection-level-0 > .collection-header {
                         border-left-color: #4fc3f7;
@@ -698,15 +734,6 @@ function buildHTML(collections, user, totals) {
                     }
                     .collection-level-3 > .collection-header {
                         border-left-color: #ef5350;
-                    }
-
-                    /* Search toggle in dark mode */
-                    .search-toggle {
-                        border-color: #555;
-                        color: #e0e0e0;
-                    }
-                    .search-toggle:hover {
-                        background: #3d3d3d;
                     }
 
                     /* Toggle switch in dark mode */
@@ -747,7 +774,7 @@ function buildHTML(collections, user, totals) {
                         <span class="shortcut-hint">| (Ctrl+F or / to search)</span>
                     </div>
                 </div>
-                <button class="search-toggle" onclick="toggleControls()" id="searchToggle" title="Toggle controls">✕</button>
+                <button class="show-controls-btn hidden" onclick="toggleControls()" id="showControlsBtn" title="Show controls">🔍</button>
             </div>
 
             <div class="controls" id="controls">
@@ -776,6 +803,9 @@ function buildHTML(collections, user, totals) {
                     <button id="clearFilters" onclick="resetFilters()">✕ Clear</button>
                     <button onclick="exportData()">📤 Export</button>
                 </div>
+
+                <!-- Controls toggle button -->
+                <button class="controls-toggle" onclick="toggleControls()" id="controlsToggle" title="Hide controls">✕</button>
             </div>
 
             ${collections.map(c => render(c, 0)).join("")}
@@ -826,14 +856,19 @@ function buildHTML(collections, user, totals) {
                 // ---------- Controls Toggle ----------
                 function toggleControls() {
                     const controls = document.getElementById('controls');
-                    const toggleBtn = document.getElementById('searchToggle');
+                    const toggleBtn = document.getElementById('controlsToggle');
+                    const showBtn = document.getElementById('showControlsBtn');
                     const isHidden = controls.classList.toggle('hidden-controls');
 
-                    // Update button
+                    // Update buttons
                     if (isHidden) {
-                        toggleBtn.textContent = '🔍';
-                        toggleBtn.title = 'Show controls';
+                        toggleBtn.style.display = 'none';
+                        showBtn.classList.remove('hidden');
+                        showBtn.textContent = '🔍';
+                        showBtn.title = 'Show controls';
                     } else {
+                        toggleBtn.style.display = 'inline-block';
+                        showBtn.classList.add('hidden');
                         toggleBtn.textContent = '✕';
                         toggleBtn.title = 'Hide controls';
                     }
@@ -850,7 +885,8 @@ function buildHTML(collections, user, totals) {
 
                 function initControlsToggle() {
                     const controls = document.getElementById('controls');
-                    const toggleBtn = document.getElementById('searchToggle');
+                    const toggleBtn = document.getElementById('controlsToggle');
+                    const showBtn = document.getElementById('showControlsBtn');
                     const p = new URLSearchParams(window.location.search);
 
                     // Check URL parameter first, then localStorage, then default to visible
@@ -867,9 +903,13 @@ function buildHTML(collections, user, totals) {
 
                     if (shouldHide) {
                         controls.classList.add('hidden-controls');
-                        toggleBtn.textContent = '🔍';
-                        toggleBtn.title = 'Show controls';
+                        toggleBtn.style.display = 'none';
+                        showBtn.classList.remove('hidden');
+                        showBtn.textContent = '🔍';
+                        showBtn.title = 'Show controls';
                     } else {
+                        toggleBtn.style.display = 'inline-block';
+                        showBtn.classList.add('hidden');
                         toggleBtn.textContent = '✕';
                         toggleBtn.title = 'Hide controls';
                     }
