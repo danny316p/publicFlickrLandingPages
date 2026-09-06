@@ -497,23 +497,67 @@ function buildHTML(collections, user, totals) {
                 input:checked + .toggle-slider:before {
                     transform: translateX(22px);
                 }
-                .toggle-label {
+
+                /* Boxed groups */
+                .boxed-group {
                     display: flex;
                     align-items: center;
-                    gap: 6px;
-                    font-size: 14px;
-                    color: #555;
+                    gap: 8px;
+                    padding: 4px 10px;
+                    border: 1px solid #ddd;
+                    border-radius: 6px;
+                    background: #f8f9fa;
+                    transition: background 0.3s, border-color 0.3s;
+                }
+                .boxed-group .grid-icon,
+                .boxed-group .list-icon {
+                    font-size: 18px;
+                    line-height: 1;
+                    color: #888;
                     transition: color 0.3s;
                 }
-                .toggle-label .grid-icon,
-                .toggle-label .list-icon {
-                    font-size: 18px;
-                }
-                .view-label {
+                .boxed-group .view-label {
                     font-weight: bold;
                     color: #333;
                     min-width: 36px;
                     transition: color 0.3s;
+                }
+                .boxed-group label {
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    font-size: 14px;
+                    color: #555;
+                    transition: color 0.3s;
+                    cursor: pointer;
+                }
+                .boxed-group input[type="text"],
+                .boxed-group input[type="number"] {
+                    border: 1px solid #ddd;
+                    border-radius: 4px;
+                    padding: 4px 8px;
+                    font-size: 14px;
+                    background: #fff;
+                    color: #333;
+                    transition: border-color 0.2s, background 0.3s, color 0.3s;
+                }
+                .boxed-group input[type="text"]:focus,
+                .boxed-group input[type="number"]:focus {
+                    border-color: #1a73e8;
+                    outline: none;
+                }
+                .boxed-group button {
+                    background: none;
+                    border: none;
+                    padding: 4px 8px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    color: #333;
+                    border-radius: 4px;
+                    transition: background 0.2s, color 0.3s;
+                }
+                .boxed-group button:hover {
+                    background: #e9ecef;
                 }
 
                 /* Search toggle button in header */
@@ -611,12 +655,35 @@ function buildHTML(collections, user, totals) {
                         color: #aaa;
                     }
 
-                    .view-label {
+                    .boxed-group {
+                        background: #3d3d3d;
+                        border-color: #555;
+                    }
+                    .boxed-group .view-label {
                         color: #e0e0e0;
                     }
-
-                    .toggle-label {
+                    .boxed-group label {
                         color: #aaa;
+                    }
+                    .boxed-group .grid-icon,
+                    .boxed-group .list-icon {
+                        color: #888;
+                    }
+                    .boxed-group input[type="text"],
+                    .boxed-group input[type="number"] {
+                        background: #3d3d3d;
+                        border-color: #555;
+                        color: #e0e0e0;
+                    }
+                    .boxed-group input[type="text"]:focus,
+                    .boxed-group input[type="number"]:focus {
+                        border-color: #4fc3f7;
+                    }
+                    .boxed-group button {
+                        color: #e0e0e0;
+                    }
+                    .boxed-group button:hover {
+                        background: #4d4d4d;
                     }
 
                     /* Collection level indicators - dark mode colors */
@@ -631,34 +698,6 @@ function buildHTML(collections, user, totals) {
                     }
                     .collection-level-3 > .collection-header {
                         border-left-color: #ef5350;
-                    }
-
-                    /* Controls inputs */
-                    .controls input[type="text"],
-                    .controls input[type="number"] {
-                        background: #3d3d3d;
-                        border: 1px solid #555;
-                        color: #e0e0e0;
-                        padding: 6px 10px;
-                        border-radius: 4px;
-                    }
-                    .controls input[type="text"]:focus,
-                    .controls input[type="number"]:focus {
-                        border-color: #4fc3f7;
-                        outline: none;
-                    }
-
-                    /* Controls buttons */
-                    .controls button {
-                        background: #3d3d3d;
-                        border: 1px solid #555;
-                        color: #e0e0e0;
-                        padding: 6px 12px;
-                        border-radius: 4px;
-                        cursor: pointer;
-                    }
-                    .controls button:hover {
-                        background: #4d4d4d;
                     }
 
                     /* Search toggle in dark mode */
@@ -676,19 +715,6 @@ function buildHTML(collections, user, totals) {
                     }
                     input:checked + .toggle-slider {
                         background-color: #4fc3f7;
-                    }
-
-                    /* Clear filters button in dark mode */
-                    #clearFilters {
-                        background: #3d3d3d;
-                        border: 1px solid #555;
-                        color: #e0e0e0;
-                        padding: 6px 12px;
-                        border-radius: 4px;
-                        cursor: pointer;
-                    }
-                    #clearFilters:hover {
-                        background: #4d4d4d;
                     }
 
                     .collection-header a {
@@ -718,17 +744,22 @@ function buildHTML(collections, user, totals) {
                         ${totals.collections.toLocaleString()} collections •
                         ${totals.albums.toLocaleString()} albums •
                         ${totals.photos.toLocaleString()} photos
+                        <span class="shortcut-hint">| (Ctrl+F or / to search)</span>
                     </div>
                 </div>
                 <button class="search-toggle" onclick="toggleControls()" id="searchToggle" title="Toggle controls">✕</button>
             </div>
 
             <div class="controls" id="controls">
-                <input id="search" placeholder="Search">
-                <input id="minPhotos" type="number" placeholder="Min photos">
-                <label><input type="checkbox" id="hasVideos"> videos</label>
+                <!-- Filter inputs group -->
+                <div class="boxed-group">
+                    <input id="search" placeholder="Search">
+                    <input id="minPhotos" type="number" placeholder="Min photos">
+                    <label><input type="checkbox" id="hasVideos"> has video</label>
+                </div>
 
-                <div class="toggle-label">
+                <!-- View toggle group -->
+                <div class="boxed-group">
                     <span class="grid-icon">▦</span>
                     <label class="toggle-switch">
                         <input type="checkbox" id="viewToggle">
@@ -738,14 +769,13 @@ function buildHTML(collections, user, totals) {
                     <span class="view-label" id="viewLabel">Grid</span>
                 </div>
 
-                <button onclick="expandAll()">Expand all</button>
-                <button onclick="collapseAll()">Collapse all</button>
-
-                <!-- Clear Filters Button -->
-                <button id="clearFilters" onclick="resetFilters()">✕ Clear filters</button>
-
-                <!-- Export Button -->
-                <button onclick="exportData()">📤 JSON Export</button>
+                <!-- Action buttons group -->
+                <div class="boxed-group">
+                    <button onclick="expandAll()">Expand all</button>
+                    <button onclick="collapseAll()">Collapse all</button>
+                    <button id="clearFilters" onclick="resetFilters()">✕ Clear</button>
+                    <button onclick="exportData()">📤 Export</button>
+                </div>
             </div>
 
             ${collections.map(c => render(c, 0)).join("")}
