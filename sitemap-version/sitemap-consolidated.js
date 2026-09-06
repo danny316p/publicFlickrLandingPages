@@ -350,8 +350,22 @@ function buildHTML(collections, user, totals) {
                     border-left: 4px solid transparent;
                     transition: border-color 0.2s, background 0.3s;
                 }
-                .children{display:none; margin-left:20px}
-                .collection.open>.children{display:block}
+                .children{
+                    display:block;
+                    margin-left:20px;
+                    max-height: 0;
+                    overflow: hidden;
+                    opacity: 0;
+                    transform: translateY(-8px);
+                    transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                                opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                                transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                .collection.open > .children {
+                    max-height: 10000px; /* Large enough for content */
+                    opacity: 1;
+                    transform: translateY(0);
+                }
 
                 /* Collection level indicators - color coded borders */
                 .collection-level-0 > .collection-header {
