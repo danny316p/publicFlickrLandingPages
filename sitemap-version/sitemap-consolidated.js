@@ -328,6 +328,9 @@ function buildHTML(collections, user, totals) {
                     transition: background 0.3s, border-color 0.3s;
                 }
                 .header img{width:48px; height:48px; border-radius:50%}
+                .header-title {
+                    flex: 1;
+                }
                 .controls{
                     display:flex;
                     gap:10px;
@@ -337,7 +340,17 @@ function buildHTML(collections, user, totals) {
                     margin:10px;
                     border-radius:8px;
                     align-items:center;
-                    transition: background 0.3s, border-color 0.3s;
+                    transition: background 0.3s, border-color 0.3s, opacity 0.3s, max-height 0.3s ease;
+                    overflow: hidden;
+                    max-height: 500px;
+                    opacity: 1;
+                }
+                .controls.hidden-controls {
+                    max-height: 0;
+                    opacity: 0;
+                    margin: 0 10px;
+                    padding: 0 10px;
+                    pointer-events: none;
                 }
                 .collection{margin:10px}
                 .collection-header{
@@ -362,7 +375,7 @@ function buildHTML(collections, user, totals) {
                                 transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 }
                 .collection.open > .children {
-                    max-height: 10000px; /* Large enough for content */
+                    max-height: 10000px;
                     opacity: 1;
                     transform: translateY(0);
                 }
@@ -503,6 +516,21 @@ function buildHTML(collections, user, totals) {
                     transition: color 0.3s;
                 }
 
+                /* Search toggle button in header */
+                .search-toggle {
+                    background: none;
+                    border: 1px solid #ddd;
+                    border-radius: 6px;
+                    padding: 6px 10px;
+                    cursor: pointer;
+                    font-size: 16px;
+                    transition: background 0.3s, border-color 0.3s;
+                    flex-shrink: 0;
+                }
+                .search-toggle:hover {
+                    background: #f0f0f0;
+                }
+
                 /* Clear filters button - initially hidden */
                 #clearFilters {
                     display: none;
@@ -633,6 +661,15 @@ function buildHTML(collections, user, totals) {
                         background: #4d4d4d;
                     }
 
+                    /* Search toggle in dark mode */
+                    .search-toggle {
+                        border-color: #555;
+                        color: #e0e0e0;
+                    }
+                    .search-toggle:hover {
+                        background: #3d3d3d;
+                    }
+
                     /* Toggle switch in dark mode */
                     .toggle-slider {
                         background-color: #555;
@@ -674,7 +711,7 @@ function buildHTML(collections, user, totals) {
                 <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank">
                     <img src="${avatarUrl(user)}" alt="avatar">
                 </a>
-                <div>
+                <div class="header-title">
                     <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank">${name}</a>'s
                     <a href="https://www.flickr.com/">Flickr</a> sitemap
                     <div class="meta">
@@ -683,9 +720,10 @@ function buildHTML(collections, user, totals) {
                         ${totals.photos.toLocaleString()} photos
                     </div>
                 </div>
+                <button class="search-toggle" onclick="toggleControls()" id="searchToggle" title="Toggle controls">✕</button>
             </div>
 
-            <div class="controls">
+            <div class="controls" id="controls">
                 <input id="search" placeholder="Search">
                 <input id="minPhotos" type="number" placeholder="Min photos">
                 <label><input type="checkbox" id="hasVideos"> videos</label>
@@ -754,6 +792,58 @@ function buildHTML(collections, user, totals) {
                     const view = this.checked ? "list" : "grid";
                     setView(view);
                 });
+
+                // ---------- Controls Toggle ----------
+                function toggleControls() {
+                    const controls = document.getElementById('controls');
+                    const toggleBtn = document.getElementById('searchToggle');
+                    const isHidden = controls.classList.toggle('hidden-controls');
+
+                    // Update button
+                    if (isHidden) {
+                        toggleBtn.textContent = '🔍';
+                        toggleBtn.title = 'Show controls';
+                    } else {
+                        toggleBtn.textContent = '✕';
+                        toggleBtn.title = 'Hide controls';
+                    }
+
+                    // Update URL
+                    const p = new URLSearchParams(window.location.search);
+                    if (isHidden) {
+                        p.set('hideControls', '1');
+                    } else {
+                        p.delete('hideControls');
+                    }
+                    history.replaceState({}, '', location.pathname + '?' + p);
+                }
+
+                function initControlsToggle() {
+                    const controls = document.getElementById('controls');
+                    const toggleBtn = document.getElementById('searchToggle');
+                    const p = new URLSearchParams(window.location.search);
+
+                    // Check URL parameter first, then localStorage, then default to visible
+                    const hideControls = p.get('hideControls');
+                    let shouldHide;
+
+                    if (hideControls !== null) {
+                        shouldHide = hideControls === '1';
+                    } else {
+                        // Fallback to localStorage
+                        const saved = localStorage.getItem('controlsVisible');
+                        shouldHide = saved === 'false';
+                    }
+
+                    if (shouldHide) {
+                        controls.classList.add('hidden-controls');
+                        toggleBtn.textContent = '🔍';
+                        toggleBtn.title = 'Show controls';
+                    } else {
+                        toggleBtn.textContent = '✕';
+                        toggleBtn.title = 'Hide controls';
+                    }
+                }
 
                 function resetFilters() {
                     document.getElementById("search").value = "";
@@ -901,6 +991,10 @@ function buildHTML(collections, user, totals) {
                     // Ctrl+F or / to focus search (but not when typing in inputs)
                     if (!isInput && ((e.ctrlKey && e.key === 'f') || e.key === '/')) {
                         e.preventDefault();
+                        // If controls are hidden, show them first
+                        if (document.getElementById('controls').classList.contains('hidden-controls')) {
+                            toggleControls();
+                        }
                         const search = document.getElementById('search');
                         search.focus();
                         search.select();
@@ -926,6 +1020,7 @@ function buildHTML(collections, user, totals) {
                     document.getElementById("search").value = p.get("q") || "";
                     document.getElementById("minPhotos").value = p.get("minPhotos") || "";
                     document.getElementById("hasVideos").checked = p.get("hasVideos") === "1";
+                    initControlsToggle();
                     filter();
                 })();
             </script>
