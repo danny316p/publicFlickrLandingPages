@@ -259,18 +259,68 @@ function countCols(cols) {
 }
 
 // ---------- HTML ----------
-function buildHTML(collections, user, totals) {
+function buildHTML(collections, user, totals, photosets) {
     const name = user.realname || user.username;
+
+    // Find albums not in any collection
+    function getOrphanAlbums(collections, photosets) {
+        // Get all album IDs that are in collections
+        const inCollections = new Set();
+        function collectAlbumIds(col) {
+            if (col.set) {
+                col.set.forEach(s => inCollections.add(s.id));
+            }
+            if (col.collection) {
+                col.collection.forEach(c => collectAlbumIds(c));
+            }
+        }
+        collections.forEach(c => collectAlbumIds(c));
+
+        // Find photosets not in any collection
+        return photosets.filter(ps => !inCollections.has(ps.id));
+    }
+
+    // Get orphan albums and add them as a special collection
+    const orphanAlbums = getOrphanAlbums(collections, photosets);
+    const allCollections = [...collections];
+    if (orphanAlbums.length > 0) {
+        const uncategorizedCol = {
+            id: 'uncategorized',
+            title: '📁 Uncategorized Albums',
+            set: orphanAlbums.map(ps => ({
+                id: ps.id,
+                title: ps.title._content,
+                photos: +ps.count_photos,
+                videos: +ps.count_videos,
+                url: albumUrl(ps.id),
+                thumb: thumbUrl({
+                    primary: ps.primary,
+                    farm: ps.farm,
+                    server: ps.server,
+                    secret: ps.secret
+                })
+            })),
+            _stats: {
+                collections: 0,
+                albums: orphanAlbums.length,
+                photos: orphanAlbums.reduce((sum, ps) => sum + +ps.count_photos, 0),
+                videos: orphanAlbums.reduce((sum, ps) => sum + +ps.count_videos, 0)
+            },
+            collection: []
+        };
+        allCollections.push(uncategorizedCol);
+    }
 
     function render(col, depth = 0) {
         // Add level class for styling
         const levelClass = `collection-level-${Math.min(depth, 3)}`;
+        const isUncategorized = col.id === 'uncategorized';
 
         return `
             <div class="collection ${levelClass}">
                 <div class="collection-header" onclick="toggle(this)">
                     <span>
-                        <a href="${collectionUrl(col.id, user)}" target="_blank">${col.title}</a>
+                        <a href="${isUncategorized ? '#' : collectionUrl(col.id, user)}" target="${isUncategorized ? '' : '_blank'}">${col.title}</a>
                         <div class="meta">
                             ${col._stats.collections ? `${col._stats.collections.toLocaleString()} collections •` : ""}
                             ${col._stats.albums ? ` ${col._stats.albums.toLocaleString()} albums ` : ""}
@@ -808,7 +858,7 @@ function buildHTML(collections, user, totals) {
                 <button class="controls-toggle" onclick="toggleControls()" id="controlsToggle" title="Hide controls">✕</button>
             </div>
 
-            ${collections.map(c => render(c, 0)).join("")}
+            ${allCollections.map(c => render(c, 0)).join("")}
 
             <script>
                 function toggle(header) {
@@ -1144,7 +1194,7 @@ function buildHTML(collections, user, totals) {
         };
 
         const outputFile = `sitemap-${suffix}.html`;
-        fs.writeFileSync(outputFile, buildHTML(tree, user, totals));
+        fs.writeFileSync(outputFile, buildHTML(tree, user, totals, photosets));
         console.log(`✅ Generated ${outputFile}`);
         console.log(`   ${totals.collections.toLocaleString()} collections, ${totals.albums.toLocaleString()} albums, ${totals.photos.toLocaleString()} photos`);
         console.log(`   Cache TTL: ${CACHE_TTL / (1000 * 60 * 60 * 24)} days`);
