@@ -749,9 +749,21 @@ function buildHTML(collections, user, totals) {
 
                     document.querySelectorAll(".collection").forEach(col => {
                         const visibleAlbums = col.querySelectorAll(".album-card:not(.hidden)");
-                        col.classList.toggle("open", visibleAlbums.length > 0);
-                        const i = col.querySelector(".collection-header span:last-child");
-                        if(i) i.textContent = col.classList.contains("open") ? "[-]" : "[+]";
+                        const hasVisible = visibleAlbums.length > 0;
+
+                        // Hide the entire collection if it has no visible albums
+                        col.classList.toggle("hidden", !hasVisible);
+
+                        // Only expand if it has visible albums
+                        if (hasVisible) {
+                            col.classList.add("open");
+                            const i = col.querySelector(".collection-header span:last-child");
+                            if(i) i.textContent = "[-]";
+                        } else {
+                            col.classList.remove("open");
+                            const i = col.querySelector(".collection-header span:last-child");
+                            if(i) i.textContent = "[+]";
+                        }
                     });
 
                     // Show/hide clear filters button
