@@ -794,20 +794,43 @@ function buildHTML(collections, user, totals) {
 
                 // ---------- Export Feature ----------
                 function collectData() {
-                    const data = [];
-                    document.querySelectorAll(".collection").forEach(col => {
+                    function processCollection(col) {
+                        // Skip if collection is hidden (no visible albums)
+                        if (col.classList.contains('hidden')) return null;
+
                         const title = col.querySelector(".collection-header a")?.textContent || "Untitled";
-                        const albums = [];
-                        col.querySelectorAll(".album-card").forEach(card => {
-                            albums.push({
+                        const result = { title, albums: [], collections: [] };
+
+                        // Get direct albums in this collection
+                        col.querySelectorAll(":scope > .children > .albums > .album-card:not(.hidden)").forEach(card => {
+                            result.albums.push({
                                 title: card.querySelector(".album-title")?.textContent || "Untitled",
                                 photos: parseInt(card.dataset.photos) || 0,
                                 videos: parseInt(card.dataset.videos) || 0,
                                 url: card.href
                             });
                         });
-                        if (albums.length > 0) {
-                            data.push({ title, albums });
+
+                        // Process child collections recursively
+                        col.querySelectorAll(":scope > .children > .collection").forEach(childCol => {
+                            const childData = processCollection(childCol);
+                            if (childData) {
+                                result.collections.push(childData);
+                            }
+                        });
+
+                        // Only return if it has albums or child collections
+                        if (result.albums.length === 0 && result.collections.length === 0) {
+                            return null;
+                        }
+                        return result;
+                    }
+
+                    const data = [];
+                    document.querySelectorAll("body > .collection").forEach(col => {
+                        const result = processCollection(col);
+                        if (result) {
+                            data.push(result);
                         }
                     });
                     return data;
