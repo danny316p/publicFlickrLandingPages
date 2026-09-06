@@ -398,13 +398,28 @@ function buildHTML(collections, user, totals) {
                     overflow:hidden;
                     text-decoration:none;
                     color:black;
-                    transition: background 0.3s, color 0.3s, box-shadow 0.3s;
+                    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                                box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                                background 0.3s,
+                                color 0.3s;
+                    box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+                    border: 1px solid #e9ecef;
+                    will-change: transform;
+                }
+                .album-card:hover {
+                    transform: translateY(-4px);
+                    box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+                    border-color: #d0d0d0;
                 }
                 .album-card img{
                     width:100%;
                     height:140px;
                     object-fit:cover;
                     background: #f0f0f0;
+                    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                .album-card:hover img {
+                    transform: scale(1.03);
                 }
                 .album-info{padding:8px}
                 .album-title{font-weight:bold}
@@ -540,6 +555,11 @@ function buildHTML(collections, user, totals) {
                     .album-card {
                         background: #2d2d2d;
                         color: #e0e0e0;
+                        border-color: #444;
+                    }
+                    .album-card:hover {
+                        border-color: #666;
+                        box-shadow: 0 8px 20px rgba(0,0,0,0.4);
                     }
                     .album-card img {
                         background: #3d3d3d;
