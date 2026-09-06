@@ -928,6 +928,21 @@ function buildHTML(collections, user, totals) {
                     } else {
                         clearBtn.classList.remove("visible");
                     }
+
+                    // handle no albums remaining
+                    const visibleAlbums = document.querySelectorAll(".album-card:not(.hidden)");
+                    const noResultsMsg = document.getElementById('noResults');
+                    if (visibleAlbums.length === 0) {
+                        if (!noResultsMsg) {
+                            const msg = document.createElement('div');
+                            msg.id = 'noResults';
+                            msg.style.cssText = 'text-align:center;padding:40px;color:#666;font-size:18px;';
+                            msg.textContent = '🔍 No albums match your filters';
+                            document.querySelector('.controls').after(msg);
+                        }
+                    } else if (noResultsMsg) {
+                        noResultsMsg.remove();
+                    }
                 }
 
                 document.getElementById("search").oninput = filter;
