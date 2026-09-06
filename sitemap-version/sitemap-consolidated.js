@@ -489,6 +489,31 @@ function buildHTML(collections, user, totals) {
                     margin-left: 4px;
                 }
 
+                /* Toast notification */
+                .toast {
+                    position: fixed;
+                    bottom: 30px;
+                    right: 30px;
+                    background: #333;
+                    color: white;
+                    padding: 12px 24px;
+                    border-radius: 8px;
+                    z-index: 9999;
+                    animation: slideIn 0.3s ease-out;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                    font-size: 14px;
+                }
+                @keyframes slideIn {
+                    from {
+                        opacity: 0;
+                        transform: translateY(20px);
+                    }
+                    to {
+                        opacity: 1;
+                        transform: translateY(0);
+                    }
+                }
+
                 /* ---------- DARK MODE ---------- */
                 @media (prefers-color-scheme: dark) {
                     body {
@@ -595,12 +620,16 @@ function buildHTML(collections, user, totals) {
                         background: #4d4d4d;
                     }
 
-                    /* Links in dark mode */
                     .collection-header a {
                         color: #4fc3f7;
                     }
                     .header a {
                         color: #4fc3f7;
+                    }
+
+                    .toast {
+                        background: #444;
+                        color: #e0e0e0;
                     }
                 }
             </style>
@@ -642,6 +671,9 @@ function buildHTML(collections, user, totals) {
 
                 <!-- Clear Filters Button -->
                 <button id="clearFilters" onclick="resetFilters()">✕ Clear filters</button>
+
+                <!-- Export Button -->
+                <button onclick="exportData()">📤 JSON Export</button>
             </div>
 
             ${collections.map(c => render(c, 0)).join("")}
@@ -735,6 +767,61 @@ function buildHTML(collections, user, totals) {
                 document.getElementById("search").oninput = filter;
                 document.getElementById("minPhotos").oninput = filter;
                 document.getElementById("hasVideos").onchange = filter;
+
+                // ---------- Toast Notification ----------
+                function showToast(message) {
+                    const existing = document.querySelector('.toast');
+                    if (existing) existing.remove();
+
+                    const toast = document.createElement('div');
+                    toast.className = 'toast';
+                    toast.textContent = message;
+                    document.body.appendChild(toast);
+                    setTimeout(() => toast.remove(), 2000);
+                }
+
+                // ---------- Export Feature ----------
+                function collectData() {
+                    const data = [];
+                    document.querySelectorAll(".collection").forEach(col => {
+                        const title = col.querySelector(".collection-header a")?.textContent || "Untitled";
+                        const albums = [];
+                        col.querySelectorAll(".album-card").forEach(card => {
+                            albums.push({
+                                title: card.querySelector(".album-title")?.textContent || "Untitled",
+                                photos: parseInt(card.dataset.photos) || 0,
+                                videos: parseInt(card.dataset.videos) || 0,
+                                url: card.href
+                            });
+                        });
+                        if (albums.length > 0) {
+                            data.push({ title, albums });
+                        }
+                    });
+                    return data;
+                }
+
+                function exportData() {
+                    const data = {
+                        generated: new Date().toISOString(),
+                        user: "${name}",
+                        totalCollections: ${totals.collections},
+                        totalAlbums: ${totals.albums},
+                        totalPhotos: ${totals.photos},
+                        collections: collectData()
+                    };
+
+                    const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = \`flickr-sitemap-\${new Date().toISOString().split('T')[0]}.json\`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    showToast("📤 Export complete!");
+                }
 
                 // ---------- Keyboard Shortcuts ----------
                 document.addEventListener('keydown', function(e) {
