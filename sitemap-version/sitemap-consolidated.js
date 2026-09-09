@@ -19,7 +19,9 @@ const suffix = mode;
 
 // ---------- SEPARATE CACHE DIRS PER MODE ----------
 const BASE_CACHE_DIR = path.join(__dirname, ".cache");
-const CACHE_DIR = path.join(BASE_CACHE_DIR, mode);
+
+const safeUserId = USER_ID.replace(/[^a-zA-Z0-9]/g, '_');
+const CACHE_DIR = path.join(BASE_CACHE_DIR, mode, safeUserId);
 const CACHE_TTL = 1000 * 60 * 60 * 24 * 7;
 const FORCE_REFRESH = process.argv.includes("--refresh");
 
