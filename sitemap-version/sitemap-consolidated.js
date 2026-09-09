@@ -1197,7 +1197,7 @@ function buildHTML(collections, user, totals, photosets) {
 
         const outputFile = `sitemap-${suffix}.html`;
         fs.writeFileSync(outputFile, buildHTML(tree, user, totals, photosets));
-        console.log(`✅ Generated ${outputFile}`);
+        console.log(`✅ Generated ${outputFile} for ${user.realname} ${USER_ID}`);
         console.log(`   ${totals.collections.toLocaleString()} collections, ${totals.albums.toLocaleString()} albums, ${totals.photos.toLocaleString()} photos`);
         console.log(`   Cache TTL: ${CACHE_TTL / (1000 * 60 * 60 * 24)} days`);
     } catch (error) {
