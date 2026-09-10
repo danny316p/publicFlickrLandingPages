@@ -49,6 +49,17 @@ function destFilename(mode, preset) {
     return name;
 }
 
+// All destination filenames this script manages, in deploy order.
+function allDestFilenames() {
+    const names = [];
+    for (const mode of MODES) {
+        for (const preset of PRESETS) {
+            names.push(destFilename(mode, preset));
+        }
+    }
+    return names;
+}
+
 // ---------- HELPERS ----------
 function ensureDir(dir) {
     if (!fs.existsSync(dir)) {
@@ -193,8 +204,8 @@ function deployFiles() {
     }
 }
 
-function commitChanges() {
-    console.log(`\n📝 Committing changes in ${DEPLOY_DIR}`);
+function commitAndPush() {
+    console.log(`\n📝 Committing and pushing changes in ${DEPLOY_DIR}`);
 
     // Verify DEPLOY_DIR is inside a git repo
     const checkRepo = spawnSync(
@@ -206,19 +217,52 @@ function commitChanges() {
         process.exit(1);
     }
 
-    const ok = runCommand(
-        "git",
-        ["commit", "-am", COMMIT_MESSAGE],
-        DEPLOY_DIR
+    // Filter to only the files that actually exist on disk right now.
+    // Files that were "Missing" during deploy (e.g. a preset that
+    // produced no output) are excluded so git doesn't error on them.
+    const managed = allDestFilenames().filter(name =>
+        fs.existsSync(path.join(DEPLOY_DIR, name))
     );
 
-    if (!ok) {
-        // git commit exits 1 when there's nothing to commit, which is
-        // not necessarily an error from our perspective.
-        console.warn("⚠️  git commit returned non-zero (nothing to commit?)");
-    } else {
-        console.log(`✅ Committed: "${COMMIT_MESSAGE}"`);
+    if (managed.length === 0) {
+        console.warn("⚠️  No managed files present in deploy directory. Skipping commit.");
+        return;
     }
+
+    // Stage exactly the files this script manages.
+    // Using "git add --" with explicit paths (-- separates paths from options).
+    const addOk = runCommand(
+        "git",
+        ["add", "--", ...managed],
+        DEPLOY_DIR
+    );
+    if (!addOk) {
+        console.error("❌ git add failed.");
+        process.exit(1);
+    }
+
+    // Commit. If nothing changed, git exits 1 with "nothing to commit";
+    // treat that as a benign no-op.
+    const commitResult = spawnSync(
+        "git", ["commit", "-m", COMMIT_MESSAGE],
+        { cwd: DEPLOY_DIR, stdio: "inherit" }
+    );
+
+    if (commitResult.status !== 0) {
+        console.warn("⚠️  git commit returned non-zero (nothing to commit?)");
+        console.warn("    Skipping push since there's nothing new to send.");
+        return;
+    }
+
+    console.log(`✅ Committed: "${COMMIT_MESSAGE}"`);
+
+    // Push
+    const pushOk = runCommand("git", ["push"], DEPLOY_DIR);
+    if (!pushOk) {
+        console.error("❌ git push failed.");
+        process.exit(1);
+    }
+    console.log("✅ Pushed.");
 }
 
 // ---------- MAIN ----------
@@ -227,7 +271,7 @@ function main() {
 
     generateSitemaps();
     deployFiles();
-    commitChanges();
+    commitAndPush();
 
     console.log("\n🎉 Deployment complete.");
 }
