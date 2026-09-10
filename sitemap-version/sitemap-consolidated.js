@@ -12,6 +12,9 @@ const USER_ID = config_consts.USER_ID;
 const OAUTH_TOKEN = config_consts.OAUTH_TOKEN;
 const OAUTH_TOKEN_SECRET = config_consts.OAUTH_TOKEN_SECRET;
 
+// Presets come from ../secrets/sitemap-presets.js
+const PRESETS = require("../secrets/sitemap-presets.js");
+
 // Determine mode from filename or environment
 const mode = process.env.FLICKR_MODE ||
              (process.argv.includes("--private") ? "private" : "public");
@@ -260,9 +263,50 @@ function countCols(cols) {
     return n;
 }
 
+// ---------- COMPUTE FILTERED STATS (server-side, for meta tags) ----------
+function computeFilteredStats(collections, preset) {
+    const q = (preset.q || "").toLowerCase();
+    const min = preset.minPhotos || 0;
+    const vid = !!preset.hasVideos;
+
+    let albums = 0, photos = 0, videos = 0, firstThumb = null;
+
+    function walk(list) {
+        list.forEach(col => {
+            (col.set || []).forEach(s => {
+                const matches = (!q || s.title.toLowerCase().includes(q))
+                             && (s.photos >= min)
+                             && (!vid || s.videos > 0);
+                if (matches) {
+                    albums++;
+                    photos += s.photos;
+                    videos += s.videos;
+                    if (!firstThumb && s.thumb) firstThumb = s.thumb;
+                }
+            });
+            if (col.collection) walk(col.collection);
+        });
+    }
+    walk(collections);
+
+    return { albums, photos, videos, firstThumb };
+}
+
+// ---------- BUILD HUMAN-READABLE FILTER LABEL ----------
+function filterLabel(preset) {
+    if (preset.label) return preset.label;
+
+    const parts = [];
+    if (preset.q) parts.push(`search: "${preset.q}"`);
+    if (preset.minPhotos > 0) parts.push(`min photos: ${preset.minPhotos}`);
+    if (preset.hasVideos) parts.push(`has videos`);
+    return parts.join(", ");
+}
+
 // ---------- HTML ----------
-function buildHTML(collections, user, totals, photosets) {
+function buildHTML(collections, user, totals, photosets, preset) {
     const name = user.realname || user.username;
+    const avatar = avatarUrl(user);
 
     // Find albums not in any collection
     function getOrphanAlbums(collections, photosets) {
@@ -313,6 +357,40 @@ function buildHTML(collections, user, totals, photosets) {
         allCollections.push(uncategorizedCol);
     }
 
+    // ---------- Build meta tags from preset (server-side) ----------
+    const filtered = computeFilteredStats(allCollections, preset);
+    const hasFilters = preset.q || preset.minPhotos > 0 || preset.hasVideos;
+
+    let pageTitle, pageDesc, previewImage;
+    if (hasFilters) {
+        const label = filterLabel(preset);
+        pageTitle = `${name}'s Flickr Sitemap – ${label}`;
+        pageDesc = `Showing ${filtered.albums.toLocaleString()} albums (${filtered.photos.toLocaleString()} photos) – ${label}`;
+        previewImage = filtered.firstThumb || avatar;
+    } else {
+        pageTitle = `${name} – Flickr Sitemap`;
+        pageDesc = `Browse ${totals.collections.toLocaleString()} collections, ${totals.albums.toLocaleString()} albums, and ${totals.photos.toLocaleString()} photos from ${name}'s Flickr account`;
+        previewImage = avatar;
+    }
+
+    // HTML-escape helper for meta attribute values
+    function esc(s) {
+        return String(s)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#39;");
+    }
+
+    // Serialize preset for the runtime init script
+    const presetJSON = JSON.stringify({
+        q: preset.q || "",
+        minPhotos: preset.minPhotos || 0,
+        hasVideos: !!preset.hasVideos,
+        hideControls: !!preset.hideControls
+    }).replace(/</g, "\\u003c");
+
     function render(col, depth = 0) {
         // Add level class for styling
         const levelClass = `collection-level-${Math.min(depth, 3)}`;
@@ -356,7 +434,22 @@ function buildHTML(collections, user, totals, photosets) {
         <html>
         <head>
             <meta name="viewport" content="width=device-width,initial-scale=1">
-            <title>${name} – Flickr Sitemap</title>
+            <title>${esc(pageTitle)}</title>
+            <meta name="description" content="${esc(pageDesc)}">
+
+            <!-- Open Graph (Facebook, LinkedIn, Slack, Discord, iMessage, etc.) -->
+            <meta property="og:title" content="${esc(pageTitle)}">
+            <meta property="og:description" content="${esc(pageDesc)}">
+            <meta property="og:type" content="website">
+            <meta property="og:image" content="${esc(previewImage)}">
+            <meta property="og:image:width" content="200">
+            <meta property="og:image:height" content="200">
+
+            <!-- Twitter Card -->
+            <meta name="twitter:card" content="summary">
+            <meta name="twitter:title" content="${esc(pageTitle)}">
+            <meta name="twitter:description" content="${esc(pageDesc)}">
+            <meta name="twitter:image" content="${esc(previewImage)}">
 
             <style>
                 /* Light mode (default) */
@@ -814,7 +907,7 @@ function buildHTML(collections, user, totals, photosets) {
         <body class="grid">
             <div class="header">
                 <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank">
-                    <img src="${avatarUrl(user)}" alt="avatar">
+                    <img src="${avatar}" alt="avatar">
                 </a>
                 <div class="header-title">
                     <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank">${name}</a>'s
@@ -863,6 +956,11 @@ function buildHTML(collections, user, totals, photosets) {
             ${allCollections.map(c => render(c, 0)).join("")}
 
             <script>
+                // Preset baked in at generation time. Server has already
+                // applied the filter to the meta tags; this just makes the
+                // page's UI consistent with the shared link.
+                const PRESET = ${presetJSON};
+
                 function toggle(header) {
                     const col = header.parentElement;
                     col.classList.toggle("open");
@@ -1154,10 +1252,33 @@ function buildHTML(collections, user, totals, photosets) {
                     const p = new URLSearchParams(window.location.search);
                     const view = p.get("view") || localStorage.getItem("view") || "grid";
                     setView(view);
-                    document.getElementById("search").value = p.get("q") || "";
-                    document.getElementById("minPhotos").value = p.get("minPhotos") || "";
-                    document.getElementById("hasVideos").checked = p.get("hasVideos") === "1";
-                    initControlsToggle();
+
+                    // Apply the baked-in preset, overriding URL if the URL
+                    // doesn't already specify these (so shared links keep
+                    // working if someone wants to override).
+                    const q = p.has("q") ? p.get("q") : PRESET.q;
+                    const min = p.has("minPhotos") ? p.get("minPhotos") : String(PRESET.minPhotos);
+                    const vid = p.has("hasVideos") ? p.get("hasVideos") === "1" : PRESET.hasVideos;
+
+                    document.getElementById("search").value = q || "";
+                    document.getElementById("minPhotos").value = min || "";
+                    document.getElementById("hasVideos").checked = !!vid;
+
+                    // If the preset requests hidden controls and the URL
+                    // doesn't explicitly say otherwise, hide them on load.
+                    if (PRESET.hideControls && !p.has("hideControls")) {
+                        const controls = document.getElementById('controls');
+                        const toggleBtn = document.getElementById('controlsToggle');
+                        const showBtn = document.getElementById('showControlsBtn');
+                        controls.classList.add('hidden-controls');
+                        toggleBtn.style.display = 'none';
+                        showBtn.classList.remove('hidden');
+                        showBtn.textContent = '🔍';
+                        showBtn.title = 'Show controls';
+                    } else {
+                        initControlsToggle();
+                    }
+
                     filter();
                 })();
             </script>
@@ -1170,6 +1291,7 @@ function buildHTML(collections, user, totals, photosets) {
     try {
         console.log(`🔧 Running in ${mode.toUpperCase()} mode`);
         console.log(`📁 Cache directory: ${CACHE_DIR}`);
+        console.log(`📋 Loaded ${PRESETS.length} preset(s) from ../secrets/sitemap-presets.js`);
 
         const [collections, photosets, user, totalPhotos] = await Promise.all([
             getCollections(),
@@ -1195,9 +1317,16 @@ function buildHTML(collections, user, totals, photosets) {
             photos: totalPhotos
         };
 
-        const outputFile = `sitemap-${suffix}.html`;
-        fs.writeFileSync(outputFile, buildHTML(tree, user, totals, photosets));
-        console.log(`✅ Generated ${outputFile} for ${user.realname} ${USER_ID}`);
+        // Generate one HTML file per preset
+        PRESETS.forEach(preset => {
+            const html = buildHTML(tree, user, totals, photosets, preset);
+            const outputFile = preset.name === "all"
+                ? `sitemap-${suffix}.html`
+                : `sitemap-${suffix}-${preset.name}.html`;
+            fs.writeFileSync(outputFile, html);
+            console.log(`✅ Generated ${outputFile} (preset: ${preset.name} for ${user.realname} ${USER_ID})`);
+        });
+
         console.log(`   ${totals.collections.toLocaleString()} collections, ${totals.albums.toLocaleString()} albums, ${totals.photos.toLocaleString()} photos`);
         console.log(`   Cache TTL: ${CACHE_TTL / (1000 * 60 * 60 * 24)} days`);
     } catch (error) {
