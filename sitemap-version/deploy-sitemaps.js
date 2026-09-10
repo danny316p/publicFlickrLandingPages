@@ -24,13 +24,25 @@ const MODES = (process.env.DEPLOY_MODES
 // Resolve source directory: secrets config > this script's directory
 const SOURCE_DIR = DEPLOY_CONFIG.sourceDir || __dirname;
 
-// ---------- HELPERS ----------
-function filenameFor(mode, preset) {
+// ---------- FILENAME TRANSFORMS ----------
+// Source filename for a given mode + preset (matches generator output).
+function sourceFilename(mode, preset) {
     return preset.name === "all"
         ? `sitemap-${mode}.html`
         : `sitemap-${mode}-${preset.name}.html`;
 }
 
+// Destination filename applied during deploy.
+//   - Prepend "flickr-"
+//   - Remove "-public" if present
+function destFilename(mode, preset) {
+    let name = sourceFilename(mode, preset);
+    name = name.replace("-public", "");
+    name = "flickr-" + name;
+    return name;
+}
+
+// ---------- HELPERS ----------
 function ensureDir(dir) {
     if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
@@ -104,12 +116,13 @@ function main() {
 
     for (const mode of MODES) {
         for (const preset of PRESETS) {
-            const filename = filenameFor(mode, preset);
-            const src = path.join(SOURCE_DIR, filename);
-            const dest = path.join(DEPLOY_DIR, filename);
+            const srcName = sourceFilename(mode, preset);
+            const destName = destFilename(mode, preset);
+            const src = path.join(SOURCE_DIR, srcName);
+            const dest = path.join(DEPLOY_DIR, destName);
 
             if (!fs.existsSync(src)) {
-                console.warn(`⚠️  Missing: ${filename} (skipped)`);
+                console.warn(`⚠️  Missing: ${srcName} (skipped)`);
                 missing++;
                 continue;
             }
@@ -118,10 +131,10 @@ function main() {
                 const size = copyFile(src, dest);
                 totalBytes += size;
                 copied++;
-                console.log(`✅ ${filename} → ${formatBytes(size)}`);
+                console.log(`✅ ${srcName} → ${destName} (${formatBytes(size)})`);
             } catch (err) {
-                console.error(`❌ Failed to copy ${filename}: ${err.message}`);
-                failures.push({ filename, error: err.message });
+                console.error(`❌ Failed to copy ${srcName}: ${err.message}`);
+                failures.push({ filename: srcName, error: err.message });
             }
         }
     }
