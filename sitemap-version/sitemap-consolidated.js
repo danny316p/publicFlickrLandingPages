@@ -1084,29 +1084,61 @@ function buildHTML(collections, user, totals, photosets, preset) {
                     vid ? p.set("hasVideos","1") : p.delete("hasVideos");
                     history.replaceState({}, '', location.pathname + '?' + p);
 
-                    document.querySelectorAll(".album-card").forEach(el => {
-                        const show = el.dataset.title.includes(q)
-                            && (+el.dataset.photos) >= min
-                            && (!vid || +el.dataset.videos > 0);
-                        el.classList.toggle("hidden", !show);
+                    // Find collections whose own title matches the search.
+                    // Albums inside a matching collection (including nested
+                    // sub-collections) will all be shown, regardless of
+                    // their own title.
+                    const matchingCollections = new Set();
+                    document.querySelectorAll(".collection").forEach(col => {
+                        const titleEl = col.querySelector(":scope > .collection-header a");
+                        if (!titleEl) return;
+                        if (q && titleEl.textContent.toLowerCase().includes(q)) {
+                            (function mark(c) {
+                                matchingCollections.add(c);
+                                c.querySelectorAll(":scope > .children > .collection").forEach(mark);
+                            })(col);
+                        }
                     });
 
+                    // Filter albums
+                    document.querySelectorAll(".album-card").forEach(el => {
+                        // Walk up the DOM to see if any ancestor collection matched
+                        let ancestorMatch = false;
+                        let node = el.closest(".collection");
+                        while (node) {
+                            if (matchingCollections.has(node)) {
+                                ancestorMatch = true;
+                                break;
+                            }
+                            node = node.parentElement
+                                ? node.parentElement.closest(".collection")
+                                : null;
+                        }
+
+                        const matchesAlbumFilters = (+el.dataset.photos) >= min
+                            && (!vid || +el.dataset.videos > 0);
+                        const matchesSearch = !q
+                            || el.dataset.title.includes(q)
+                            || ancestorMatch;
+                        el.classList.toggle("hidden", !(matchesAlbumFilters && matchesSearch));
+                    });
+
+                    // Show/hide collections based on visible albums
                     document.querySelectorAll(".collection").forEach(col => {
                         const visibleAlbums = col.querySelectorAll(".album-card:not(.hidden)");
                         const hasVisible = visibleAlbums.length > 0;
 
-                        // Hide the entire collection if it has no visible albums
                         col.classList.toggle("hidden", !hasVisible);
 
-                        // Only expand if it has visible albums
+                        // Use :scope so we only target this collection's own
+                        // header, not nested ones.
+                        const i = col.querySelector(":scope > .collection-header span:last-child");
                         if (hasVisible) {
                             col.classList.add("open");
-                            const i = col.querySelector(".collection-header span:last-child");
-                            if(i) i.textContent = "[-]";
+                            if (i) i.textContent = "[-]";
                         } else {
                             col.classList.remove("open");
-                            const i = col.querySelector(".collection-header span:last-child");
-                            if(i) i.textContent = "[+]";
+                            if (i) i.textContent = "[+]";
                         }
                     });
 
