@@ -304,6 +304,10 @@ function filterLabel(preset) {
 }
 
 // ---------- HTML ----------
+function formatCount(count, singular) {
+    return `${count.toLocaleString()} ${count === 1 ? singular : `${singular}s`}`;
+}
+
 function buildHTML(collections, user, totals, photosets, preset) {
     const name = user.realname || user.username;
     const avatar = avatarUrl(user);
@@ -395,6 +399,12 @@ function buildHTML(collections, user, totals, photosets, preset) {
         // Add level class for styling
         const levelClass = `collection-level-${Math.min(depth, 3)}`;
         const isUncategorized = col.id === 'uncategorized';
+        const collectionMeta = [
+            col._stats.collections ? formatCount(col._stats.collections, "collection") : "",
+            col._stats.albums ? formatCount(col._stats.albums, "album") : "",
+            col._stats.photos ? formatCount(col._stats.photos, "photo") : "",
+            col._stats.videos ? formatCount(col._stats.videos, "video") : ""
+        ].filter(Boolean).join(" • ");
 
         return `
             <div class="collection ${levelClass}">
@@ -402,10 +412,7 @@ function buildHTML(collections, user, totals, photosets, preset) {
                     <span>
                         <a href="${isUncategorized ? '#' : collectionUrl(col.id, user)}" target="${isUncategorized ? '' : '_blank'}">${col.title}</a>
                         <div class="meta">
-                            ${col._stats.collections ? `${col._stats.collections.toLocaleString()} collections •` : ""}
-                            ${col._stats.albums ? ` ${col._stats.albums.toLocaleString()} albums ` : ""}
-                            ${col._stats.photos ? `• ${col._stats.photos.toLocaleString()} photos ` : ""}
-                            ${col._stats.videos ? `• ${col._stats.videos.toLocaleString()} videos` : ""}
+                            ${collectionMeta}
                         </div>
                     </span>
                     <span class="toggle">[+]</span>
@@ -419,7 +426,7 @@ function buildHTML(collections, user, totals, photosets, preset) {
                                 <div class="album-info">
                                     <div class="album-title">${s.title}</div>
                                     <div class="meta">
-                                        ${s.photos ? `${s.photos.toLocaleString()} photos ` : ""} ${s.videos ? `• ${s.videos.toLocaleString()} videos` : ""}
+                                        ${formatCount(s.photos, "photo")}${s.videos ? ` • ${formatCount(s.videos, "video")}` : ""}
                                     </div>
                                 </div>
                             </a>
@@ -917,9 +924,9 @@ function buildHTML(collections, user, totals, photosets, preset) {
                     <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank">${name}</a>'s
                     <a href="https://www.flickr.com/">Flickr</a> sitemap
                     <div class="meta">
-                        ${totals.collections.toLocaleString()} collections •
-                        ${totals.albums.toLocaleString()} albums •
-                        ${totals.photos.toLocaleString()} photos
+                        ${formatCount(totals.collections, "collection")} •
+                        ${formatCount(totals.albums, "album")} •
+                        ${formatCount(totals.photos, "photo")}
                         <span class="shortcut-hint">| (Ctrl+F or / to search)</span>
                     </div>
                 </div>
