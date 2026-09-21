@@ -126,6 +126,42 @@ async function getPhotosets() {
     return all;
 }
 
+async function getPhotosetMediaIds(photosetId) {
+    const cacheKey = `photoset_${photosetId}_media_ids`;
+    const cached = readCache(cacheKey);
+    if (cached) return cached;
+
+    let page = 1, pages = 1;
+    const photoIds = [];
+    const videoIds = [];
+    while (page <= pages) {
+        const d = await flickrCall("flickr.photosets.getPhotos", {
+            photoset_id: photosetId,
+            page,
+            per_page: 500
+        });
+        if (!d.photoset) {
+            throw new Error(`Failed to fetch photos for photoset ${photosetId}`);
+        }
+        pages = d.photoset.pages || 1;
+        (d.photoset.photo || []).forEach(photo => {
+            (photo.media === "video" ? videoIds : photoIds).push(photo.id);
+        });
+        page++;
+    }
+
+    const mediaIds = { photoIds, videoIds };
+    writeCache(cacheKey, mediaIds);
+    return mediaIds;
+}
+
+async function addPhotosetMediaIds(photosets) {
+    for (const photoset of photosets) {
+        Object.assign(photoset, await getPhotosetMediaIds(photoset.id));
+    }
+    return photosets;
+}
+
 async function getUserInfo() {
     const c = readCache("user_info");
     if (c) return c;
@@ -182,6 +218,8 @@ function buildMap(list) {
             title: ps.title._content,
             photos: +ps.count_photos,
             videos: +ps.count_videos,
+            photoIds: ps.photoIds || [],
+            videoIds: ps.videoIds || [],
             primary: ps.primary,
             farm: ps.farm,
             server: ps.server,
@@ -204,6 +242,8 @@ function enrich(col, map) {
                 title: m.title,
                 photos: m.photos,
                 videos: m.videos,
+                photoIds: m.photoIds,
+                videoIds: m.videoIds,
                 url: albumUrl(s.id),
                 thumb: thumbUrl(m)
             };
@@ -230,12 +270,14 @@ function prune(col) {
 // ---------- STATS ----------
 function stats(col) {
     let s = { collections: 0, albums: 0, photos: 0, videos: 0 };
+    const photoIds = new Set();
+    const videoIds = new Set();
 
     if (col.set) {
         col.set.forEach(x => {
             s.albums++;
-            s.photos += x.photos;
-            s.videos += x.videos;
+            x.photoIds.forEach(id => photoIds.add(id));
+            x.videoIds.forEach(id => videoIds.add(id));
         });
     }
 
@@ -245,11 +287,15 @@ function stats(col) {
             const sub = stats(c);
             s.collections += sub.collections;
             s.albums += sub.albums;
-            s.photos += sub.photos;
-            s.videos += sub.videos;
+            sub.photoIds.forEach(id => photoIds.add(id));
+            sub.videoIds.forEach(id => videoIds.add(id));
         });
     }
 
+    s.photos = photoIds.size;
+    s.videos = videoIds.size;
+    s.photoIds = photoIds;
+    s.videoIds = videoIds;
     col._stats = s;
     return s;
 }
@@ -271,7 +317,9 @@ function computeFilteredStats(collections, preset) {
     const min = preset.minPhotos || 0;
     const vid = !!preset.hasVideos;
 
-    let albums = 0, photos = 0, videos = 0, firstThumb = null;
+    let albums = 0, firstThumb = null;
+    const photoIds = new Set();
+    const videoIds = new Set();
 
     function walk(list) {
         list.forEach(col => {
@@ -281,8 +329,8 @@ function computeFilteredStats(collections, preset) {
                              && (!vid || s.videos > 0);
                 if (matches) {
                     albums++;
-                    photos += s.photos;
-                    videos += s.videos;
+                    s.photoIds.forEach(id => photoIds.add(id));
+                    s.videoIds.forEach(id => videoIds.add(id));
                     if (!firstThumb && s.thumb) firstThumb = s.thumb;
                 }
             });
@@ -291,7 +339,7 @@ function computeFilteredStats(collections, preset) {
     }
     walk(collections);
 
-    return { albums, photos, videos, firstThumb };
+    return { albums, photos: photoIds.size, videos: videoIds.size, firstThumb };
 }
 
 // ---------- BUILD HUMAN-READABLE FILTER LABEL ----------
@@ -340,6 +388,8 @@ function buildHTML(collections, user, totals, photosets, preset) {
                 title: ps.title._content,
                 photos: +ps.count_photos,
                 videos: +ps.count_videos,
+                photoIds: ps.photoIds || [],
+                videoIds: ps.videoIds || [],
                 url: albumUrl(ps.id),
                 thumb: thumbUrl({
                     primary: ps.primary,
@@ -351,8 +401,14 @@ function buildHTML(collections, user, totals, photosets, preset) {
             _stats: {
                 collections: 0,
                 albums: orphanAlbums.length,
-                photos: orphanAlbums.reduce((sum, ps) => sum + +ps.count_photos, 0),
-                videos: orphanAlbums.reduce((sum, ps) => sum + +ps.count_videos, 0)
+                photos: orphanAlbums.reduce((ids, ps) => {
+                    (ps.photoIds || []).forEach(id => ids.add(id));
+                    return ids;
+                }, new Set()).size,
+                videos: orphanAlbums.reduce((ids, ps) => {
+                    (ps.videoIds || []).forEach(id => ids.add(id));
+                    return ids;
+                }, new Set()).size
             },
             collection: []
         };
@@ -1338,6 +1394,7 @@ function buildHTML(collections, user, totals, photosets, preset) {
             getTotalPhotoCount()
         ]);
 
+        await addPhotosetMediaIds(photosets);
         const map = buildMap(photosets);
 
         let tree = collections.map(c => enrich(JSON.parse(JSON.stringify(c)), map));
