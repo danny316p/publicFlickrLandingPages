@@ -562,6 +562,10 @@ function buildHTML(collections, user, totals, photosets, preset) {
                     object-fit:cover;
                     margin-right:10px
                 }
+                body.list .album-title,
+                body.list .album-info .meta{
+                    display:inline
+                }
 
                 /* CARD */
                 .album-card{
