@@ -160,8 +160,11 @@ const realId = id => id.split("-").pop();
 const baseUser = u => u.pathAlias || u.nsid;
 const albumUrl = id => `https://www.flickr.com/photos/${USER_ID}/albums/${id}`;
 const collectionUrl = (id, u) => `https://www.flickr.com/photos/${baseUser(u)}/collections/${realId(id)}`;
-const countLabel = (count, singular) =>
-    `${count.toLocaleString()} ${count === 1 ? singular : `${singular}s`}`;
+const countLabel = (count, singular, options = {}) => {
+    const { skipZero = false } = options;
+    if (count === 0 && skipZero) return "";
+    return `${count.toLocaleString()} ${count === 1 ? singular : `${singular}s`}`;
+};
 
 function avatarUrl(user) {
     if (!user.iconserver || parseInt(user.iconserver) === 0)
@@ -404,10 +407,10 @@ function buildHTML(collections, user, totals, photosets, preset) {
                     <span>
                         <a href="${isUncategorized ? '#' : collectionUrl(col.id, user)}" target="${isUncategorized ? '' : '_blank'}">${col.title}</a>
                         <div class="meta">
-                            ${col._stats.collections ? `${countLabel(col._stats.collections, "collection")} •` : ""}
-                            ${col._stats.albums ? ` ${countLabel(col._stats.albums, "album")} ` : ""}
-                            ${col._stats.photos ? `• ${countLabel(col._stats.photos, "photo")} ` : ""}
-                            ${col._stats.videos ? `• ${countLabel(col._stats.videos, "video")}` : ""}
+                            ${countLabel(col._stats.collections, "collection", { skipZero: true }) ? `${countLabel(col._stats.collections, "collection", { skipZero: true })} •` : ""}
+                            ${countLabel(col._stats.albums, "album", { skipZero: true }) ? ` ${countLabel(col._stats.albums, "album", { skipZero: true })} ` : ""}
+                            ${countLabel(col._stats.photos, "photo", { skipZero: true }) ? `• ${countLabel(col._stats.photos, "photo", { skipZero: true })} ` : ""}
+                            ${countLabel(col._stats.videos, "video", { skipZero: true }) ? `• ${countLabel(col._stats.videos, "video", { skipZero: true })}` : ""}
                         </div>
                     </span>
                     <span class="toggle">[+]</span>
@@ -421,7 +424,7 @@ function buildHTML(collections, user, totals, photosets, preset) {
                                 <div class="album-info">
                                     <div class="album-title">${s.title}</div>
                                     <div class="meta">
-                                        ${s.photos ? `${countLabel(s.photos, "photo")} ` : ""} ${s.videos ? `• ${countLabel(s.videos, "video")}` : ""}
+                                        ${countLabel(s.photos, "photo", { skipZero: true }) ? `${countLabel(s.photos, "photo", { skipZero: true })} ` : ""} ${countLabel(s.videos, "video", { skipZero: true }) ? `• ${countLabel(s.videos, "video", { skipZero: true })}` : ""}
                                     </div>
                                 </div>
                             </a>
