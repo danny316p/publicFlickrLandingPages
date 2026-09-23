@@ -422,6 +422,10 @@ function buildHTML(collections, user, totals, photosets, preset) {
                     (ps.videoIds || []).forEach(id => ids.add(id));
                     return ids;
                 }, new Set()).size + orphanAlbums.reduce((sum, ps) => sum +
+                    Math.max(0, +ps.count_videos - (ps.videoIds || []).length), 0),
+                videoIds: new Set(orphanAlbums.reduce((ids, ps) =>
+                    ids.concat(ps.videoIds || []), [])),
+                unprocessedVideos: orphanAlbums.reduce((sum, ps) => sum +
                     Math.max(0, +ps.count_videos - (ps.videoIds || []).length), 0)
             },
             collection: []
@@ -467,6 +471,8 @@ function buildHTML(collections, user, totals, photosets, preset) {
         // Add level class for styling
         const levelClass = `collection-level-${Math.min(depth, 3)}`;
         const isUncategorized = col.id === 'uncategorized';
+        const collectionVideoCount = col._stats.videoIds.size;
+        const collectionUnprocessedVideoCount = col._stats.unprocessedVideos;
 
         return `
             <div class="collection ${levelClass}">
@@ -477,7 +483,8 @@ function buildHTML(collections, user, totals, photosets, preset) {
                             ${col._stats.collections ? `${countLabel(col._stats.collections, "collection")} •` : ""}
                             ${col._stats.albums ? ` ${countLabel(col._stats.albums, "album")} ` : ""}
                             ${col._stats.photos ? `• ${countLabel(col._stats.photos, "photo")} ` : ""}
-                            ${col._stats.videos ? `• ${countLabel(col._stats.videos, "video")}` : ""}
+                            ${collectionVideoCount ? `• ${countLabel(collectionVideoCount, "video")}` : ""}
+                            ${collectionUnprocessedVideoCount ? ` • ${countLabel(collectionUnprocessedVideoCount, "unprocessed video")}` : ""}
                         </div>
                     </span>
                     <span class="toggle">[+]</span>
@@ -491,7 +498,7 @@ function buildHTML(collections, user, totals, photosets, preset) {
                                 <div class="album-info">
                                     <div class="album-title">${s.title}</div>
                                     <div class="meta">
-                                        ${s.photos ? `${countLabel(s.photos, "photo")} ` : ""} ${s.videos ? `• ${countLabel(s.videos, "video")}` : ""}
+                                        ${s.photos ? `${countLabel(s.photos, "photo")} ` : ""} ${s.videoIds.length ? `• ${countLabel(s.videoIds.length, "video")}` : ""}${s.unprocessedVideos ? ` • ${countLabel(s.unprocessedVideos, "unprocessed video")}` : ""}
                                     </div>
                                 </div>
                             </a>
