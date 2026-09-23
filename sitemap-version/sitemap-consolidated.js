@@ -127,7 +127,7 @@ async function getPhotosets() {
 }
 
 async function getPhotosetMediaIds(photosetId) {
-    const cacheKey = `photoset_${photosetId}_media_ids`;
+    const cacheKey = `photoset_${photosetId}_media_ids_v2`;
     const cached = readCache(cacheKey);
     if (cached) return cached;
 
