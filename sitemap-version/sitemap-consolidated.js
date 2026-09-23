@@ -131,24 +131,30 @@ async function getPhotosetMediaIds(photosetId) {
     const cached = readCache(cacheKey);
     if (cached) return cached;
 
-    let page = 1, pages = 1;
-    const photoIds = [];
-    const videoIds = [];
-    while (page <= pages) {
-        const d = await flickrCall("flickr.photosets.getPhotos", {
-            photoset_id: photosetId,
-            page,
-            per_page: 500
-        });
-        if (!d.photoset) {
-            throw new Error(`Failed to fetch photos for photoset ${photosetId}`);
+    async function fetchMediaIds(media) {
+        let page = 1, pages = 1;
+        const ids = [];
+        while (page <= pages) {
+            const d = await flickrCall("flickr.photosets.getPhotos", {
+                photoset_id: photosetId,
+                media,
+                page,
+                per_page: 500
+            });
+            if (!d.photoset) {
+                throw new Error(`Failed to fetch ${media} for photoset ${photosetId}`);
+            }
+            pages = d.photoset.pages || 1;
+            (d.photoset.photo || []).forEach(item => ids.push(item.id));
+            page++;
         }
-        pages = d.photoset.pages || 1;
-        (d.photoset.photo || []).forEach(photo => {
-            (photo.media === "video" ? videoIds : photoIds).push(photo.id);
-        });
-        page++;
+        return ids;
     }
+
+    const [photoIds, videoIds] = await Promise.all([
+        fetchMediaIds("photos"),
+        fetchMediaIds("videos")
+    ]);
 
     const mediaIds = { photoIds, videoIds };
     writeCache(cacheKey, mediaIds);
