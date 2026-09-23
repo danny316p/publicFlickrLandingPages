@@ -424,6 +424,10 @@ function buildHTML(collections, user, totals, photosets, preset) {
                     (ps.videoIds || []).forEach(id => ids.add(id));
                     return ids;
                 }, new Set()).size + orphanAlbums.reduce((sum, ps) => sum +
+                    Math.max(0, +ps.count_videos - (ps.videoIds || []).length), 0),
+                videoIds: new Set(orphanAlbums.reduce((ids, ps) =>
+                    ids.concat(ps.videoIds || []), [])),
+                unprocessedVideos: orphanAlbums.reduce((sum, ps) => sum +
                     Math.max(0, +ps.count_videos - (ps.videoIds || []).length), 0)
             },
             collection: []
@@ -469,6 +473,8 @@ function buildHTML(collections, user, totals, photosets, preset) {
         // Add level class for styling
         const levelClass = `collection-level-${Math.min(depth, 3)}`;
         const isUncategorized = col.id === 'uncategorized';
+        const collectionVideoCount = col._stats.videoIds.size;
+        const collectionUnprocessedVideoCount = col._stats.unprocessedVideos;
 
         return `
             <div class="collection ${levelClass}">
@@ -479,7 +485,8 @@ function buildHTML(collections, user, totals, photosets, preset) {
                             ${col._stats.collections ? `${col._stats.collections.toLocaleString()} collections •` : ""}
                             ${col._stats.albums ? ` ${col._stats.albums.toLocaleString()} albums ` : ""}
                             ${col._stats.photos ? `• ${col._stats.photos.toLocaleString()} photos ` : ""}
-                            ${col._stats.videos ? `• ${col._stats.videos.toLocaleString()} videos` : ""}
+                            ${collectionVideoCount ? `• ${collectionVideoCount.toLocaleString()} ${collectionVideoCount === 1 ? "video" : "videos"}` : ""}
+                            ${collectionUnprocessedVideoCount ? ` • ${collectionUnprocessedVideoCount.toLocaleString()} unprocessed ${collectionUnprocessedVideoCount === 1 ? "video" : "videos"}` : ""}
                         </div>
                     </span>
                     <span class="toggle">[+]</span>
@@ -493,7 +500,7 @@ function buildHTML(collections, user, totals, photosets, preset) {
                                 <div class="album-info">
                                     <div class="album-title">${s.title}</div>
                                     <div class="meta">
-                                        ${s.photos ? `${s.photos.toLocaleString()} photos ` : ""} ${s.videos ? `• ${s.videos.toLocaleString()} videos` : ""}
+                                        ${s.photos ? `${s.photos.toLocaleString()} photos ` : ""} ${s.videoIds.length ? `• ${s.videoIds.length.toLocaleString()} ${s.videoIds.length === 1 ? "video" : "videos"}` : ""}${s.unprocessedVideos ? ` • ${s.unprocessedVideos.toLocaleString()} unprocessed ${s.unprocessedVideos === 1 ? "video" : "videos"}` : ""}
                                     </div>
                                 </div>
                             </a>
