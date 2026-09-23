@@ -246,6 +246,7 @@ function enrich(col, map) {
                 videos: m.videos,
                 photoIds: m.photoIds,
                 videoIds: m.videoIds,
+                unprocessedVideos: Math.max(0, m.videos - m.videoIds.length),
                 url: albumUrl(s.id),
                 thumb: thumbUrl(m)
             };
@@ -274,12 +275,14 @@ function stats(col) {
     let s = { collections: 0, albums: 0, photos: 0, videos: 0 };
     const photoIds = new Set();
     const videoIds = new Set();
+    let unprocessedVideos = 0;
 
     if (col.set) {
         col.set.forEach(x => {
             s.albums++;
             x.photoIds.forEach(id => photoIds.add(id));
             x.videoIds.forEach(id => videoIds.add(id));
+            unprocessedVideos += x.unprocessedVideos;
         });
     }
 
@@ -291,13 +294,15 @@ function stats(col) {
             s.albums += sub.albums;
             sub.photoIds.forEach(id => photoIds.add(id));
             sub.videoIds.forEach(id => videoIds.add(id));
+            unprocessedVideos += sub.unprocessedVideos;
         });
     }
 
     s.photos = photoIds.size;
-    s.videos = videoIds.size;
+    s.videos = videoIds.size + unprocessedVideos;
     s.photoIds = photoIds;
     s.videoIds = videoIds;
+    s.unprocessedVideos = unprocessedVideos;
     col._stats = s;
     return s;
 }
@@ -322,6 +327,7 @@ function computeFilteredStats(collections, preset) {
     let albums = 0, firstThumb = null;
     const photoIds = new Set();
     const videoIds = new Set();
+    let unprocessedVideos = 0;
 
     function walk(list) {
         list.forEach(col => {
@@ -333,6 +339,7 @@ function computeFilteredStats(collections, preset) {
                     albums++;
                     s.photoIds.forEach(id => photoIds.add(id));
                     s.videoIds.forEach(id => videoIds.add(id));
+                    unprocessedVideos += s.unprocessedVideos;
                     if (!firstThumb && s.thumb) firstThumb = s.thumb;
                 }
             });
@@ -341,7 +348,12 @@ function computeFilteredStats(collections, preset) {
     }
     walk(collections);
 
-    return { albums, photos: photoIds.size, videos: videoIds.size, firstThumb };
+    return {
+        albums,
+        photos: photoIds.size,
+        videos: videoIds.size + unprocessedVideos,
+        firstThumb
+    };
 }
 
 // ---------- BUILD HUMAN-READABLE FILTER LABEL ----------
@@ -392,6 +404,7 @@ function buildHTML(collections, user, totals, photosets, preset) {
                 videos: +ps.count_videos,
                 photoIds: ps.photoIds || [],
                 videoIds: ps.videoIds || [],
+                unprocessedVideos: Math.max(0, +ps.count_videos - (ps.videoIds || []).length),
                 url: albumUrl(ps.id),
                 thumb: thumbUrl({
                     primary: ps.primary,
@@ -410,7 +423,8 @@ function buildHTML(collections, user, totals, photosets, preset) {
                 videos: orphanAlbums.reduce((ids, ps) => {
                     (ps.videoIds || []).forEach(id => ids.add(id));
                     return ids;
-                }, new Set()).size
+                }, new Set()).size + orphanAlbums.reduce((sum, ps) => sum +
+                    Math.max(0, +ps.count_videos - (ps.videoIds || []).length), 0)
             },
             collection: []
         };
