@@ -200,6 +200,8 @@ const realId = id => id.split("-").pop();
 const baseUser = u => u.pathAlias || u.nsid;
 const albumUrl = id => `https://www.flickr.com/photos/${USER_ID}/albums/${id}`;
 const collectionUrl = (id, u) => `https://www.flickr.com/photos/${baseUser(u)}/collections/${realId(id)}`;
+const countLabel = (count, singular) =>
+    `${count.toLocaleString()} ${count === 1 ? singular : `${singular}s`}`;
 
 function avatarUrl(user) {
     if (!user.iconserver || parseInt(user.iconserver) === 0)
@@ -443,11 +445,11 @@ function buildHTML(collections, user, totals, photosets, preset) {
     if (hasFilters) {
         const label = filterLabel(preset);
         pageTitle = `${name}'s Flickr Sitemap – ${label}`;
-        pageDesc = `Showing ${filtered.albums.toLocaleString()} albums (${filtered.photos.toLocaleString()} photos) – ${label}`;
+        pageDesc = `Showing ${countLabel(filtered.albums, "album")} (${countLabel(filtered.photos, "photo")}) – ${label}`;
         previewImage = filtered.firstThumb || avatar;
     } else {
         pageTitle = `${name} – Flickr Sitemap`;
-        pageDesc = `Browse ${totals.collections.toLocaleString()} collections, ${totals.albums.toLocaleString()} albums, and ${totals.photos.toLocaleString()} photos from ${name}'s Flickr account`;
+        pageDesc = `Browse ${countLabel(totals.collections, "collection")}, ${countLabel(totals.albums, "album")}, and ${countLabel(totals.photos, "photo")} from ${name}'s Flickr account`;
         previewImage = avatar;
     }
 
@@ -482,11 +484,11 @@ function buildHTML(collections, user, totals, photosets, preset) {
                     <span>
                         <a href="${isUncategorized ? '#' : collectionUrl(col.id, user)}" target="${isUncategorized ? '' : '_blank'}">${col.title}</a>
                         <div class="meta">
-                            ${col._stats.collections ? `${col._stats.collections.toLocaleString()} collections •` : ""}
-                            ${col._stats.albums ? ` ${col._stats.albums.toLocaleString()} albums ` : ""}
-                            ${col._stats.photos ? `• ${col._stats.photos.toLocaleString()} photos ` : ""}
-                            ${collectionVideoCount ? `• ${collectionVideoCount.toLocaleString()} ${collectionVideoCount === 1 ? "video" : "videos"}` : ""}
-                            ${collectionUnprocessedVideoCount ? ` • ${collectionUnprocessedVideoCount.toLocaleString()} unprocessed ${collectionUnprocessedVideoCount === 1 ? "video" : "videos"}` : ""}
+                            ${col._stats.collections ? `${countLabel(col._stats.collections, "collection")} •` : ""}
+                            ${col._stats.albums ? ` ${countLabel(col._stats.albums, "album")} ` : ""}
+                            ${col._stats.photos ? `• ${countLabel(col._stats.photos, "photo")} ` : ""}
+                            ${collectionVideoCount ? `• ${countLabel(collectionVideoCount, "video")}` : ""}
+                            ${collectionUnprocessedVideoCount ? ` • ${countLabel(collectionUnprocessedVideoCount, "unprocessed video")}` : ""}
                         </div>
                     </span>
                     <span class="toggle">[+]</span>
@@ -500,7 +502,7 @@ function buildHTML(collections, user, totals, photosets, preset) {
                                 <div class="album-info">
                                     <div class="album-title">${s.title}</div>
                                     <div class="meta">
-                                        ${s.photos ? `${s.photos.toLocaleString()} photos ` : ""} ${s.videoIds.length ? `• ${s.videoIds.length.toLocaleString()} ${s.videoIds.length === 1 ? "video" : "videos"}` : ""}${s.unprocessedVideos ? ` • ${s.unprocessedVideos.toLocaleString()} unprocessed ${s.unprocessedVideos === 1 ? "video" : "videos"}` : ""}
+                                        ${s.photos ? `${countLabel(s.photos, "photo")} ` : ""} ${s.videoIds.length ? `• ${countLabel(s.videoIds.length, "video")}` : ""}${s.unprocessedVideos ? ` • ${countLabel(s.unprocessedVideos, "unprocessed video")}` : ""}
                                     </div>
                                 </div>
                             </a>
@@ -642,6 +644,10 @@ function buildHTML(collections, user, totals, photosets, preset) {
                     height:80px;
                     object-fit:cover;
                     margin-right:10px
+                }
+                body.list .album-title,
+                body.list .album-info .meta{
+                    display:inline
                 }
 
                 /* CARD */
@@ -994,9 +1000,9 @@ function buildHTML(collections, user, totals, photosets, preset) {
                     <a href="https://www.flickr.com/photos/${baseUser(user)}" target="_blank">${name}</a>'s
                     <a href="https://www.flickr.com/">Flickr</a> sitemap
                     <div class="meta">
-                        ${totals.collections.toLocaleString()} collections •
-                        ${totals.albums.toLocaleString()} albums •
-                        ${totals.photos.toLocaleString()} photos
+                        ${countLabel(totals.collections, "collection")} •
+                        ${countLabel(totals.albums, "album")} •
+                        ${countLabel(totals.photos, "photo")}
                         <span class="shortcut-hint">| (Ctrl+F or / to search)</span>
                     </div>
                 </div>
@@ -1441,7 +1447,7 @@ function buildHTML(collections, user, totals, photosets, preset) {
             console.log(`✅ Generated ${outputFile} (preset: ${preset.name} for ${user.realname} ${USER_ID})`);
         });
 
-        console.log(`   ${totals.collections.toLocaleString()} collections, ${totals.albums.toLocaleString()} albums, ${totals.photos.toLocaleString()} photos`);
+        console.log(`   ${countLabel(totals.collections, "collection")}, ${countLabel(totals.albums, "album")}, ${countLabel(totals.photos, "photo")}`);
         console.log(`   Cache TTL: ${CACHE_TTL / (1000 * 60 * 60 * 24)} days`);
     } catch (error) {
         console.error("❌ Error:", error.message);
