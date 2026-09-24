@@ -121,6 +121,11 @@ function textContent(node) {
     return node.text + node.children.map(textContent).join("");
 }
 
+function textContentWithoutMeta(node) {
+    if (hasClass(node, "meta")) return "";
+    return node.text + node.children.map(textContentWithoutMeta).join("");
+}
+
 function escapeMarkdown(value) {
     return value.replace(/([\\`*_{}\[\]()#+.!|>~-])/g, "\\$1").replace(/\s+/g, " ").trim();
 }
@@ -135,7 +140,7 @@ function parseCollections(root) {
             ? albumsContainer.children.filter(child => child.tag === "a" && hasClass(child, "album-card")).map(card => {
                 const titleNode = directChild(card, child => hasClass(child, "album-title"));
                 return {
-                    title: textContent(titleNode || card).trim(),
+                    title: (titleNode ? textContent(titleNode) : textContentWithoutMeta(card)).trim(),
                     url: card.attrs.href || "#",
                     photos: Number(card.attrs["data-photos"] || 0),
                     videos: Number(card.attrs["data-videos"] || 0)
