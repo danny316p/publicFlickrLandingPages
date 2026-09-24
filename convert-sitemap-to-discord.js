@@ -191,8 +191,9 @@ function renderMarkdown(collections, options) {
             ? collection.albums
             : collection.albums.slice(0, options.maxAlbums);
         albums.forEach(album => {
-            const counts = `${formatCount(album.photos, "photo")}, ${formatCount(album.videos, "video")}`;
-            lines.push(`- [${escapeMarkdown(album.title)}](${album.url}) — ${counts}`);
+            const counts = [formatCount(album.photos, "photo")];
+            if (album.videos > 0) counts.push(formatCount(album.videos, "video"));
+            lines.push(`- [${escapeMarkdown(album.title)}](${album.url}) — ${counts.join(", ")}`);
         });
         if (albums.length < collection.albums.length) {
             lines.push(`- _...and ${collection.albums.length - albums.length} more album(s)_`);
