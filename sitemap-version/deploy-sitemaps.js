@@ -27,6 +27,7 @@ const SOURCE_DIR = DEPLOY_CONFIG.sourceDir || __dirname;
 
 // Path to the generator script (relative to this script's directory)
 const GENERATOR_SCRIPT = path.join(__dirname, "sitemap-consolidated.js");
+const SHOW_UNPROCESSED_VIDEOS = process.argv.includes("--show-unprocessed-videos");
 
 // Commit message used by the git commit step
 const COMMIT_MESSAGE = "Update Flickr sitemaps";
@@ -120,6 +121,7 @@ function generateSitemaps() {
     for (const mode of MODES) {
         const args = [GENERATOR_SCRIPT, "--refresh"];
         if (mode === "private") args.push("--private");
+        if (SHOW_UNPROCESSED_VIDEOS) args.push("--show-unprocessed-videos");
 
         const ok = runCommand("node", args, SOURCE_DIR);
         if (!ok) {

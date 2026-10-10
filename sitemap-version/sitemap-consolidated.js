@@ -27,6 +27,7 @@ const safeUserId = USER_ID.replace(/[^a-zA-Z0-9]/g, '_');
 const CACHE_DIR = path.join(BASE_CACHE_DIR, mode, safeUserId);
 const CACHE_TTL = 1000 * 60 * 60 * 24 * 7;
 const FORCE_REFRESH = process.argv.includes("--refresh");
+const SHOW_UNPROCESSED_VIDEOS = process.argv.includes("--show-unprocessed-videos");
 
 if (!fs.existsSync(CACHE_DIR)) fs.mkdirSync(CACHE_DIR, { recursive: true });
 
@@ -490,7 +491,7 @@ function buildHTML(collections, user, totals, photosets, preset) {
                             ${col._stats.albums ? ` ${countLabel(col._stats.albums, "album")} ` : ""}
                             ${col._stats.photos ? `• ${countLabel(col._stats.photos, "photo")} ` : ""}
                             ${collectionVideoCount ? `• ${countLabel(collectionVideoCount, "video")}` : ""}
-                            ${collectionUnprocessedVideoCount ? ` • ${countLabel(collectionUnprocessedVideoCount, "unprocessed video")}` : ""}
+                            ${SHOW_UNPROCESSED_VIDEOS && collectionUnprocessedVideoCount ? ` • ${countLabel(collectionUnprocessedVideoCount, "unprocessed video")}` : ""}
                         </div>
                     </span>
                     <span class="toggle">[+]</span>
@@ -504,7 +505,7 @@ function buildHTML(collections, user, totals, photosets, preset) {
                                 <div class="album-info">
                                     <div class="album-title">${s.title}</div>
                                     <div class="meta">
-                                        ${s.photos ? `${countLabel(s.photos, "photo")} ` : ""} ${s.videoIds.length ? `• ${countLabel(s.videoIds.length, "video")}` : ""}${s.unprocessedVideos ? ` • ${countLabel(s.unprocessedVideos, "unprocessed video")}` : ""}
+                                        ${s.photos ? `${countLabel(s.photos, "photo")} ` : ""} ${s.videoIds.length ? `• ${countLabel(s.videoIds.length, "video")}` : ""}${SHOW_UNPROCESSED_VIDEOS && s.unprocessedVideos ? ` • ${countLabel(s.unprocessedVideos, "unprocessed video")}` : ""}
                                     </div>
                                 </div>
                             </a>
