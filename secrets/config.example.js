@@ -19,8 +19,8 @@ module.exports = {
             { label: "Website", url: "https://example.com" }
         ],
         socials: [
-            { label: "Linktree", url: "https://linktr.ee/example", icon: "↗" },
-            { label: "Patreon", url: "https://www.patreon.com/example", icon: "♥" }
+            { label: "Linktree", url: "https://linktr.ee/example", iconUrl: "https://cdn.simpleicons.org/linktree" },
+            { label: "Patreon", url: "https://www.patreon.com/example", iconUrl: "https://cdn.simpleicons.org/patreon" }
         ]
     }
 };

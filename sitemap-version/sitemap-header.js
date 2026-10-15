@@ -37,6 +37,9 @@ function normalizeItems(items, includeIcon) {
                 url,
                 ...(includeIcon && typeof item.icon === "string" && item.icon.trim()
                     ? { icon: item.icon.trim() }
+                    : {}),
+                ...(includeIcon && safeUrl(item.iconUrl)
+                    ? { iconUrl: safeUrl(item.iconUrl) }
                     : {})
             };
         })
@@ -65,7 +68,7 @@ function renderHeaderExtras(config) {
         : "";
     const socials = header.socials.length
         ? `<nav class="header-socials" aria-label="Social links">${header.socials.map(link =>
-            `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(link.label)}">${link.icon ? `<span aria-hidden="true">${escapeHtml(link.icon)}</span>` : ""}${escapeHtml(link.label)}</a>`
+            `<a href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(link.label)}">${link.iconUrl ? `<img class="social-icon" src="${escapeHtml(link.iconUrl)}" alt="" loading="lazy">` : link.icon ? `<span aria-hidden="true">${escapeHtml(link.icon)}</span>` : ""}${escapeHtml(link.label)}</a>`
         ).join("")}</nav>`
         : "";
 

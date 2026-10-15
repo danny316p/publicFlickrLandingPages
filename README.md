@@ -36,5 +36,6 @@ object configures the generated page header; leave its fields empty or remove
 the object to retain the default header.
 
 All fields are optional. `about` is rendered as text, while links require an
-`http` or `https` URL; invalid entries are ignored. Labels, icons, and the
-about text are HTML-escaped before rendering.
+`http` or `https` URL; invalid entries are ignored. Social entries can use
+`iconUrl` for a logo image or `icon` for a text/emoji icon. Logo URLs must use
+`http` or `https`; labels, icons, and the about text are HTML-escaped.
