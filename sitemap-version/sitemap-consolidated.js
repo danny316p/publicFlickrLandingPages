@@ -585,13 +585,16 @@ function buildHTML(collections, user, totals, photosets, preset) {
                 .header img{width:48px; height:48px; border-radius:50%}
                 .header-title {
                     flex: 1;
+                    min-width: 0;
                 }
                 .header-extras {
                     display: flex;
                     flex-wrap: wrap;
+                    justify-content: flex-end;
                     gap: 6px 12px;
-                    margin-top: 6px;
+                    max-width: 40%;
                     font-size: 0.9em;
+                    text-align: right;
                 }
                 .header-about {
                     flex-basis: 100%;
@@ -607,6 +610,18 @@ function buildHTML(collections, user, totals, photosets, preset) {
                 .header-extras a {
                     font-size: 1em;
                     font-weight: normal;
+                }
+                @media (max-width: 700px) {
+                    .header {
+                        flex-wrap: wrap;
+                    }
+                    .header-extras {
+                        flex: 1 0 100%;
+                        max-width: none;
+                        justify-content: flex-start;
+                        margin-left: 58px;
+                        text-align: left;
+                    }
                 }
                 .controls{
                     display:flex;
@@ -1054,8 +1069,8 @@ function buildHTML(collections, user, totals, photosets, preset) {
                         ${countLabel(totals.photos, "photo")}
                         <span class="shortcut-hint">| (Ctrl+F or / to search)</span>
                     </div>
-                    ${renderHeaderExtras(SITEMAP_HEADER)}
                 </div>
+                ${renderHeaderExtras(SITEMAP_HEADER)}
                 <button class="show-controls-btn hidden" onclick="toggleControls()" id="showControlsBtn" title="Show controls">🔍</button>
             </div>
 
