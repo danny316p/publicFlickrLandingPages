@@ -19,8 +19,8 @@ module.exports = {
             { label: "Website", url: "https://example.com" }
         ],
         socials: [
-            { label: "Instagram", url: "https://instagram.com/example", icon: "◎" },
-            { label: "Mastodon", url: "https://mastodon.social/@example", icon: "✦" }
+            { label: "Linktree", url: "https://linktr.ee/example", icon: "↗" },
+            { label: "Patreon", url: "https://www.patreon.com/example", icon: "♥" }
         ]
     }
 };
