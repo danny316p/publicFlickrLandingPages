@@ -11,6 +11,10 @@ const API_SECRET = config_consts.API_SECRET;
 const USER_ID = config_consts.USER_ID;
 const OAUTH_TOKEN = config_consts.OAUTH_TOKEN;
 const OAUTH_TOKEN_SECRET = config_consts.OAUTH_TOKEN_SECRET;
+const COLLECTION_ID = config_consts.COLLECTION_ID;
+const HAS_COLLECTION_ID = COLLECTION_ID !== undefined
+    && COLLECTION_ID !== null
+    && String(COLLECTION_ID).trim() !== "";
 
 // Presets come from ../secrets/sitemap-presets.js
 const PRESETS = require("../secrets/sitemap-presets.js");
@@ -336,6 +340,15 @@ function countCols(cols) {
         });
     })(cols);
     return n;
+}
+
+function findCollection(collections, id) {
+    for (const collection of collections) {
+        if (realId(String(collection.id)) === id) return collection;
+        const match = findCollection(collection.collection || [], id);
+        if (match) return match;
+    }
+    return null;
 }
 
 // ---------- COMPUTE FILTERED STATS (server-side, for meta tags) ----------
@@ -1491,10 +1504,18 @@ function buildHTML(collections, user, totals, photosets, preset) {
             getTotalPhotoCount()
         ]);
 
+        const selectedCollection = HAS_COLLECTION_ID
+            ? findCollection(collections, realId(String(COLLECTION_ID).trim()))
+            : null;
+        if (HAS_COLLECTION_ID && !selectedCollection) {
+            throw new Error(`Collection ${COLLECTION_ID} was not found`);
+        }
+
         if (!FAST_MODE) await addPhotosetMediaIds(photosets);
         const map = buildMap(photosets);
 
-        let tree = collections.map(c => enrich(JSON.parse(JSON.stringify(c)), map));
+        const collectionsToRender = HAS_COLLECTION_ID ? [selectedCollection] : collections;
+        let tree = collectionsToRender.map(c => enrich(JSON.parse(JSON.stringify(c)), map));
 
         // If private mode, prune empty collections
         if (mode === "private") {
@@ -1504,14 +1525,18 @@ function buildHTML(collections, user, totals, photosets, preset) {
         tree.forEach(stats);
 
         const totals = {
-            albums: photosets.length,
+            albums: HAS_COLLECTION_ID
+                ? tree.reduce((sum, collection) => sum + collection._stats.albums, 0)
+                : photosets.length,
             collections: countCols(tree),
-            photos: totalPhotos
+            photos: HAS_COLLECTION_ID
+                ? tree.reduce((sum, collection) => sum + collection._stats.photos, 0)
+                : totalPhotos
         };
 
         // Generate one HTML file per preset
         PRESETS.forEach(preset => {
-            const html = buildHTML(tree, user, totals, photosets, preset);
+            const html = buildHTML(tree, user, totals, HAS_COLLECTION_ID ? [] : photosets, preset);
             const outputFile = preset.name === "all"
                 ? `sitemap-${suffix}.html`
                 : `sitemap-${suffix}-${preset.name}.html`;
