@@ -27,3 +27,14 @@ node convert-sitemap-to-discord.js sitemap.html --collection "vacation" --max-al
 ```
 
 The positional HTML file is required. `--collection` selects collections whose titles contain the supplied substring (including their parent hierarchy), `--max-albums` limits the number of albums listed directly under each collection, and `--output` writes the result to a file instead of stdout.
+
+## Optional sitemap header information
+
+Copy `secrets/config.example.js` to `secrets/config.js` and replace the
+placeholder Flickr credentials with your own. The optional `sitemapHeader`
+object configures the generated page header; leave its fields empty or remove
+the object to retain the default header.
+
+All fields are optional. `about` is rendered as text, while links require an
+`http` or `https` URL; invalid entries are ignored. Labels, icons, and the
+about text are HTML-escaped before rendering.
