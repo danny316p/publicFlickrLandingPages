@@ -14,6 +14,8 @@ const OAUTH_TOKEN_SECRET = config_consts.OAUTH_TOKEN_SECRET;
 
 // Presets come from ../secrets/sitemap-presets.js
 const PRESETS = require("../secrets/sitemap-presets.js");
+const { renderHeaderExtras } = require("./sitemap-header.js");
+const SITEMAP_HEADER = config_consts.sitemapHeader;
 
 // Determine mode from filename or environment
 const mode = process.env.FLICKR_MODE ||
@@ -584,6 +586,28 @@ function buildHTML(collections, user, totals, photosets, preset) {
                 .header-title {
                     flex: 1;
                 }
+                .header-extras {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 6px 12px;
+                    margin-top: 6px;
+                    font-size: 0.9em;
+                }
+                .header-about {
+                    flex-basis: 100%;
+                    margin: 0;
+                    white-space: pre-line;
+                }
+                .header-links,
+                .header-socials {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                }
+                .header-extras a {
+                    font-size: 1em;
+                    font-weight: normal;
+                }
                 .controls{
                     display:flex;
                     gap:10px;
@@ -1030,6 +1054,7 @@ function buildHTML(collections, user, totals, photosets, preset) {
                         ${countLabel(totals.photos, "photo")}
                         <span class="shortcut-hint">| (Ctrl+F or / to search)</span>
                     </div>
+                    ${renderHeaderExtras(SITEMAP_HEADER)}
                 </div>
                 <button class="show-controls-btn hidden" onclick="toggleControls()" id="showControlsBtn" title="Show controls">🔍</button>
             </div>
