@@ -607,6 +607,12 @@ function buildHTML(collections, user, totals, photosets, preset) {
                     flex-wrap: wrap;
                     gap: 8px;
                 }
+                .header-socials .social-icon {
+                    width: 1em;
+                    height: 1em;
+                    object-fit: contain;
+                    vertical-align: -0.15em;
+                }
                 .header-extras a {
                     font-size: 1em;
                     font-weight: normal;
