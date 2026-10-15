@@ -19,6 +19,7 @@ const PRESETS = require("../secrets/sitemap-presets.js");
 const mode = process.env.FLICKR_MODE ||
              (process.argv.includes("--private") ? "private" : "public");
 const suffix = mode;
+const FAST_MODE = process.argv.includes("--fast");
 
 // ---------- SEPARATE CACHE DIRS PER MODE ----------
 const BASE_CACHE_DIR = path.join(__dirname, ".cache");
@@ -250,7 +251,7 @@ function enrich(col, map) {
                 videos: m.videos,
                 photoIds: m.photoIds,
                 videoIds: m.videoIds,
-                unprocessedVideos: Math.max(0, m.videos - m.videoIds.length),
+                unprocessedVideos: FAST_MODE ? 0 : Math.max(0, m.videos - m.videoIds.length),
                 url: albumUrl(s.id),
                 thumb: thumbUrl(m)
             };
@@ -284,8 +285,13 @@ function stats(col) {
     if (col.set) {
         col.set.forEach(x => {
             s.albums++;
-            x.photoIds.forEach(id => photoIds.add(id));
-            x.videoIds.forEach(id => videoIds.add(id));
+            if (FAST_MODE) {
+                s.photos += x.photos;
+                s.videos += x.videos;
+            } else {
+                x.photoIds.forEach(id => photoIds.add(id));
+                x.videoIds.forEach(id => videoIds.add(id));
+            }
             unprocessedVideos += x.unprocessedVideos;
         });
     }
@@ -296,14 +302,21 @@ function stats(col) {
             const sub = stats(c);
             s.collections += sub.collections;
             s.albums += sub.albums;
-            sub.photoIds.forEach(id => photoIds.add(id));
-            sub.videoIds.forEach(id => videoIds.add(id));
+            if (FAST_MODE) {
+                s.photos += sub.photos;
+                s.videos += sub.videos;
+            } else {
+                sub.photoIds.forEach(id => photoIds.add(id));
+                sub.videoIds.forEach(id => videoIds.add(id));
+            }
             unprocessedVideos += sub.unprocessedVideos;
         });
     }
 
-    s.photos = photoIds.size;
-    s.videos = videoIds.size + unprocessedVideos;
+    if (!FAST_MODE) {
+        s.photos = photoIds.size;
+        s.videos = videoIds.size + unprocessedVideos;
+    }
     s.photoIds = photoIds;
     s.videoIds = videoIds;
     s.unprocessedVideos = unprocessedVideos;
@@ -328,7 +341,7 @@ function computeFilteredStats(collections, preset) {
     const min = preset.minPhotos || 0;
     const vid = !!preset.hasVideos;
 
-    let albums = 0, firstThumb = null;
+    let albums = 0, photos = 0, videos = 0, firstThumb = null;
     const photoIds = new Set();
     const videoIds = new Set();
     let unprocessedVideos = 0;
@@ -341,8 +354,13 @@ function computeFilteredStats(collections, preset) {
                              && (!vid || s.videos > 0);
                 if (matches) {
                     albums++;
-                    s.photoIds.forEach(id => photoIds.add(id));
-                    s.videoIds.forEach(id => videoIds.add(id));
+                    if (FAST_MODE) {
+                        photos += s.photos;
+                        videos += s.videos;
+                    } else {
+                        s.photoIds.forEach(id => photoIds.add(id));
+                        s.videoIds.forEach(id => videoIds.add(id));
+                    }
                     unprocessedVideos += s.unprocessedVideos;
                     if (!firstThumb && s.thumb) firstThumb = s.thumb;
                 }
@@ -354,8 +372,8 @@ function computeFilteredStats(collections, preset) {
 
     return {
         albums,
-        photos: photoIds.size,
-        videos: videoIds.size + unprocessedVideos,
+        photos: FAST_MODE ? photos : photoIds.size,
+        videos: FAST_MODE ? videos : videoIds.size + unprocessedVideos,
         firstThumb
     };
 }
@@ -408,7 +426,7 @@ function buildHTML(collections, user, totals, photosets, preset) {
                 videos: +ps.count_videos,
                 photoIds: ps.photoIds || [],
                 videoIds: ps.videoIds || [],
-                unprocessedVideos: Math.max(0, +ps.count_videos - (ps.videoIds || []).length),
+                unprocessedVideos: FAST_MODE ? 0 : Math.max(0, +ps.count_videos - (ps.videoIds || []).length),
                 url: albumUrl(ps.id),
                 thumb: thumbUrl({
                     primary: ps.primary,
@@ -420,18 +438,22 @@ function buildHTML(collections, user, totals, photosets, preset) {
             _stats: {
                 collections: 0,
                 albums: orphanAlbums.length,
-                photos: orphanAlbums.reduce((ids, ps) => {
-                    (ps.photoIds || []).forEach(id => ids.add(id));
-                    return ids;
-                }, new Set()).size,
-                videos: orphanAlbums.reduce((ids, ps) => {
-                    (ps.videoIds || []).forEach(id => ids.add(id));
-                    return ids;
-                }, new Set()).size + orphanAlbums.reduce((sum, ps) => sum +
-                    Math.max(0, +ps.count_videos - (ps.videoIds || []).length), 0),
+                photos: FAST_MODE
+                    ? orphanAlbums.reduce((sum, ps) => sum + +ps.count_photos, 0)
+                    : orphanAlbums.reduce((ids, ps) => {
+                        (ps.photoIds || []).forEach(id => ids.add(id));
+                        return ids;
+                    }, new Set()).size,
+                videos: FAST_MODE
+                    ? orphanAlbums.reduce((sum, ps) => sum + +ps.count_videos, 0)
+                    : orphanAlbums.reduce((ids, ps) => {
+                        (ps.videoIds || []).forEach(id => ids.add(id));
+                        return ids;
+                    }, new Set()).size + orphanAlbums.reduce((sum, ps) => sum +
+                        Math.max(0, +ps.count_videos - (ps.videoIds || []).length), 0),
                 videoIds: new Set(orphanAlbums.reduce((ids, ps) =>
                     ids.concat(ps.videoIds || []), [])),
-                unprocessedVideos: orphanAlbums.reduce((sum, ps) => sum +
+                unprocessedVideos: FAST_MODE ? 0 : orphanAlbums.reduce((sum, ps) => sum +
                     Math.max(0, +ps.count_videos - (ps.videoIds || []).length), 0)
             },
             collection: []
@@ -477,7 +499,7 @@ function buildHTML(collections, user, totals, photosets, preset) {
         // Add level class for styling
         const levelClass = `collection-level-${Math.min(depth, 3)}`;
         const isUncategorized = col.id === 'uncategorized';
-        const collectionVideoCount = col._stats.videoIds.size;
+        const collectionVideoCount = FAST_MODE ? col._stats.videos : col._stats.videoIds.size;
         const collectionUnprocessedVideoCount = col._stats.unprocessedVideos;
 
         return `
@@ -504,7 +526,7 @@ function buildHTML(collections, user, totals, photosets, preset) {
                                 <div class="album-info">
                                     <div class="album-title">${s.title}</div>
                                     <div class="meta">
-                                        ${s.photos ? `${countLabel(s.photos, "photo")} ` : ""} ${s.videoIds.length ? `• ${countLabel(s.videoIds.length, "video")}` : ""}${s.unprocessedVideos ? ` • ${countLabel(s.unprocessedVideos, "unprocessed video")}` : ""}
+                                        ${s.photos ? `${countLabel(s.photos, "photo")} ` : ""} ${(FAST_MODE ? s.videos : s.videoIds.length) ? `• ${countLabel(FAST_MODE ? s.videos : s.videoIds.length, "video")}` : ""}${s.unprocessedVideos ? ` • ${countLabel(s.unprocessedVideos, "unprocessed video")}` : ""}
                                     </div>
                                 </div>
                             </a>
@@ -1411,6 +1433,7 @@ function buildHTML(collections, user, totals, photosets, preset) {
 (async () => {
     try {
         console.log(`🔧 Running in ${mode.toUpperCase()} mode`);
+        if (FAST_MODE) console.log("⚡ Fast mode enabled; using Flickr's reported media totals without deduplication");
         console.log(`📁 Cache directory: ${CACHE_DIR}`);
         console.log(`📋 Loaded ${PRESETS.length} preset(s) from ../secrets/sitemap-presets.js`);
 
@@ -1421,7 +1444,7 @@ function buildHTML(collections, user, totals, photosets, preset) {
             getTotalPhotoCount()
         ]);
 
-        await addPhotosetMediaIds(photosets);
+        if (!FAST_MODE) await addPhotosetMediaIds(photosets);
         const map = buildMap(photosets);
 
         let tree = collections.map(c => enrich(JSON.parse(JSON.stringify(c)), map));
