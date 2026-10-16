@@ -20,6 +20,13 @@ const HAS_COLLECTION_ID = COLLECTION_ID !== undefined
 const PRESETS = require("../secrets/sitemap-presets.js");
 const { renderHeaderExtras } = require("./sitemap-header.js");
 const SITEMAP_HEADER = config_consts.sitemapHeader;
+const DEFAULT_PRESET = {
+    name: "all",
+    q: "",
+    minPhotos: 0,
+    hasVideos: false,
+    hideControls: false
+};
 
 // Determine mode from filename or environment
 const mode = process.env.FLICKR_MODE ||
@@ -1495,7 +1502,9 @@ function buildHTML(collections, user, totals, photosets, preset) {
         console.log(`🔧 Running in ${mode.toUpperCase()} mode`);
         if (FAST_MODE) console.log("⚡ Fast mode enabled; using Flickr's reported media totals without deduplication");
         console.log(`📁 Cache directory: ${CACHE_DIR}`);
-        console.log(`📋 Loaded ${PRESETS.length} preset(s) from ../secrets/sitemap-presets.js`);
+        if (!HAS_COLLECTION_ID) {
+            console.log(`📋 Loaded ${PRESETS.length} preset(s) from ../secrets/sitemap-presets.js`);
+        }
 
         const [collections, photosets, user, totalPhotos] = await Promise.all([
             getCollections(),
@@ -1534,14 +1543,18 @@ function buildHTML(collections, user, totals, photosets, preset) {
                 : totalPhotos
         };
 
-        // Generate one HTML file per preset
-        PRESETS.forEach(preset => {
+        // Collection-specific output is a single, unfiltered sitemap.
+        const presetsToGenerate = HAS_COLLECTION_ID ? [DEFAULT_PRESET] : PRESETS;
+        presetsToGenerate.forEach(preset => {
             const html = buildHTML(tree, user, totals, HAS_COLLECTION_ID ? [] : photosets, preset);
             const outputFile = preset.name === "all"
                 ? `sitemap-${suffix}.html`
                 : `sitemap-${suffix}-${preset.name}.html`;
             fs.writeFileSync(outputFile, html);
-            console.log(`✅ Generated ${outputFile} (preset: ${preset.name} for ${user.realname} ${USER_ID})`);
+            const generationDetails = HAS_COLLECTION_ID
+                ? `for ${user.realname} ${USER_ID}`
+                : `preset: ${preset.name} for ${user.realname} ${USER_ID}`;
+            console.log(`✅ Generated ${outputFile} (${generationDetails})`);
         });
 
         console.log(`   ${countLabel(totals.collections, "collection")}, ${countLabel(totals.albums, "album")}, ${countLabel(totals.photos, "photo")}`);
